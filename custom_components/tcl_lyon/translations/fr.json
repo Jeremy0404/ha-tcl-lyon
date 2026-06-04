@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TCL Lyon",
+        "description": "Connexion à data.grandlyon.com. Il vous faut un compte GrandLyon Connect ET un mot de passe data distinct, à définir via le flow \"mot de passe oublié\".",
+        "data": {
+          "username": "Email (GrandLyon Connect)",
+          "password": "Mot de passe data"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiants invalides. Avez-vous bien défini votre mot de passe data via le flow \"mot de passe oublié\" ? Il est distinct du mot de passe SSO.",
+      "cannot_connect": "Impossible de joindre data.grandlyon.com.",
+      "unknown": "Erreur inattendue."
+    },
+    "abort": {
+      "already_configured": "Ce compte est déjà configuré."
+    }
+  }
+}

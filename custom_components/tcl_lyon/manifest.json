@@ -1,0 +1,12 @@
+{
+  "domain": "tcl_lyon",
+  "name": "TCL Lyon",
+  "version": "0.1.0",
+  "codeowners": ["@Jeremy0404"],
+  "config_flow": true,
+  "documentation": "https://github.com/Jeremy0404/ha-tcl-lyon",
+  "issue_tracker": "https://github.com/Jeremy0404/ha-tcl-lyon/issues",
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "requirements": []
+}
