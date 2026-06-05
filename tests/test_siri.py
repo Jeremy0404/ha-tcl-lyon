@@ -157,3 +157,64 @@ def test_parse_situations_filters_by_line():
 def test_parse_handles_empty_payload():
     assert parse_departures({}) == []
     assert parse_situations({}) == []
+
+
+@pytest.mark.parametrize("payload", [None, [], "error", 123, {"Siri": "nope"}])
+def test_parse_tolerates_non_dict_payload(payload):
+    # A 200 carrying the wrong JSON shape must yield nothing, never raise.
+    assert parse_departures(payload) == []
+    assert parse_situations(payload) == []
+
+
+def test_parse_departures_tolerates_garbage_nesting():
+    # Truthy non-list/non-dict where lists/dicts are expected used to crash the poll.
+    payload = {
+        "Siri": {
+            "ServiceDelivery": {
+                "EstimatedTimetableDelivery": [
+                    {"EstimatedJourneyVersionFrame": "oops"},
+                    {"EstimatedJourneyVersionFrame": [{"EstimatedVehicleJourney": ["x", 7]}]},
+                ]
+            }
+        }
+    }
+    assert parse_departures(payload) == []
+
+
+def test_parse_situations_tolerates_garbage_nesting():
+    payload = {
+        "Siri": {
+            "ServiceDelivery": {
+                "SituationExchangeDelivery": [{"Situations": {"PtSituationElement": ["nope", 1]}}]
+            }
+        }
+    }
+    assert parse_situations(payload) == []
+
+
+def test_parse_situations_drops_non_string_keywords_and_bad_periods():
+    payload = {
+        "Siri": {
+            "ServiceDelivery": {
+                "SituationExchangeDelivery": [
+                    {
+                        "Situations": {
+                            "PtSituationElement": [
+                                {
+                                    "SituationNumber": {"value": "X1"},
+                                    "Keywords": ["travaux", 5, None],
+                                    "ValidityPeriod": [
+                                        "bad",
+                                        {"StartTime": "2026-06-04T20:00:00Z"},
+                                    ],
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+    (disruption,) = parse_situations(payload)
+    assert disruption.keywords == ("travaux",)  # non-strings dropped
+    assert disruption.validity_periods == ((datetime(2026, 6, 4, 20, 0, tzinfo=UTC), None),)

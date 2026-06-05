@@ -7,6 +7,9 @@
         "data": {
           "username": "Email (GrandLyon Connect)",
           "password": "Data password"
+        },
+        "data_description": {
+          "password": "Distinct from your SSO password — set it via the forgot-password flow. This is the most common cause of a 401 error."
         }
       },
       "stop": {

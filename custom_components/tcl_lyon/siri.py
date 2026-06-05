@@ -118,8 +118,10 @@ def parse_departures(payload: dict, *, stop_ids: Iterable[str] | None = None) ->
         direction = _value(journey.get("DirectionRef"))
         destination_id = parse_ref(_value(journey.get("DestinationRef")))
         journey_cancelled = bool(journey.get("Cancellation"))
-        calls = (journey.get("EstimatedCalls") or {}).get("EstimatedCall") or []
+        calls = _as_list(_as_dict(journey.get("EstimatedCalls")).get("EstimatedCall"))
         for call in calls:
+            if not isinstance(call, dict):
+                continue
             stop_id = parse_ref(_value(call.get("StopPointRef")))
             if wanted is not None and stop_id not in wanted:
                 continue
@@ -176,12 +178,15 @@ def parse_situations(payload: dict, *, line_refs: Iterable[str] | None = None) -
                 situation_number=_value(situation.get("SituationNumber")),
                 description=_first_value(situation.get("Description")),
                 report_type=situation.get("ReportType"),
-                keywords=tuple(situation.get("Keywords") or ()),
+                keywords=tuple(
+                    kw for kw in _as_list(situation.get("Keywords")) if isinstance(kw, str)
+                ),
                 affected_line_refs=affected_refs,
                 affected_line_ids=tuple(parse_ref(ref) for ref in affected_refs),
                 validity_periods=tuple(
                     (parse_time(period.get("StartTime")), parse_time(period.get("EndTime")))
-                    for period in situation.get("ValidityPeriod") or ()
+                    for period in _as_list(situation.get("ValidityPeriod"))
+                    if isinstance(period, dict)
                 ),
                 creation_time=parse_time(situation.get("CreationTime")),
             )
@@ -224,29 +229,41 @@ def _departure_sort_key(departure: Departure) -> tuple[bool, datetime]:
     return (when is None, when or datetime.max.replace(tzinfo=UTC))
 
 
+def _as_dict(node: object) -> dict:
+    """A dict node, or ``{}`` for anything else — the feed's shape can't be trusted."""
+    return node if isinstance(node, dict) else {}
+
+
+def _as_list(node: object) -> list:
+    """A list node, or ``[]`` for anything else (a 200 can still carry junk)."""
+    return node if isinstance(node, list) else []
+
+
 def _iter_journeys(payload: dict) -> Iterator[dict]:
-    deliveries = _service_delivery(payload).get("EstimatedTimetableDelivery") or []
-    for delivery in deliveries:
-        for frame in delivery.get("EstimatedJourneyVersionFrame") or []:
-            yield from frame.get("EstimatedVehicleJourney") or []
+    for delivery in _as_list(_service_delivery(payload).get("EstimatedTimetableDelivery")):
+        for frame in _as_list(_as_dict(delivery).get("EstimatedJourneyVersionFrame")):
+            for journey in _as_list(_as_dict(frame).get("EstimatedVehicleJourney")):
+                if isinstance(journey, dict):
+                    yield journey
 
 
 def _iter_situations(payload: dict) -> Iterator[dict]:
-    deliveries = _service_delivery(payload).get("SituationExchangeDelivery") or []
-    for delivery in deliveries:
-        situations = (delivery.get("Situations") or {}).get("PtSituationElement") or []
-        yield from situations
+    for delivery in _as_list(_service_delivery(payload).get("SituationExchangeDelivery")):
+        elements = _as_dict(_as_dict(delivery).get("Situations")).get("PtSituationElement")
+        for situation in _as_list(elements):
+            if isinstance(situation, dict):
+                yield situation
 
 
 def _affected_line_refs(situation: dict) -> Iterator[str]:
-    for consequence in (situation.get("Consequences") or {}).get("Consequence") or []:
-        networks = (consequence.get("Affects") or {}).get("Networks") or {}
-        for network in networks.get("AffectedNetwork") or []:
-            for line in network.get("AffectedLine") or []:
-                ref = _value(line.get("LineRef"))
+    for consequence in _as_list(_as_dict(situation.get("Consequences")).get("Consequence")):
+        networks = _as_dict(_as_dict(consequence).get("Affects")).get("Networks")
+        for network in _as_list(_as_dict(networks).get("AffectedNetwork")):
+            for line in _as_list(_as_dict(network).get("AffectedLine")):
+                ref = _value(_as_dict(line).get("LineRef"))
                 if ref:
                     yield ref
 
 
 def _service_delivery(payload: dict) -> dict:
-    return (payload or {}).get("Siri", {}).get("ServiceDelivery", {}) or {}
+    return _as_dict(_as_dict(_as_dict(payload).get("Siri")).get("ServiceDelivery"))
