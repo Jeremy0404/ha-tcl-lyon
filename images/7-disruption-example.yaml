@@ -1,0 +1,37 @@
+line_ref: ActIV:Line::D:SYTRAL
+disruption_count: 2
+summary: >-
+  Perturbation — Nuits de Fourvière - 28/05 au 25/07
+
+  Perturbation — Dans le cadre du festival des nuits de Fourvière, du vendredi
+  28 mai au samedi 25 juillet inclus, certains soirs les 4 lignes de métros sont
+  prolongées jusqu'à 1h00 environ et la ligne F1 est renforcée.Retrouvez le
+  détail et les dates concernées sur
+  http://www.tcl.fr/nuits-de-fourviere-jy-vais-avec-tcl.Nous vous souhaitons
+  d'excellentes nuits de Fourvière.
+disruptions:
+  - situation_number: ACTIV_2551901927019834423_2
+    description: Nuits de Fourvière - 28/05 au 25/07
+    keywords:
+      - Perturbation
+    report_type: incident
+    validity_period:
+      - start: "2026-05-28T02:30:00+00:00"
+        end: "2026-07-26T00:30:00+00:00"
+  - situation_number: ACTIV_2551901927019834423_1
+    description: >-
+      Dans le cadre du festival des nuits de Fourvière, du vendredi 28 mai au
+      samedi 25 juillet inclus, certains soirs les 4 lignes de métros sont
+      prolongées jusqu'à 1h00 environ et la ligne F1 est renforcée.Retrouvez le
+      détail et les dates concernées sur
+      http://www.tcl.fr/nuits-de-fourviere-jy-vais-avec-tcl.Nous vous souhaitons
+      d'excellentes nuits de Fourvière.
+    keywords:
+      - Perturbation
+    report_type: incident
+    validity_period:
+      - start: "2026-05-28T02:30:00+00:00"
+        end: "2026-07-26T00:30:00+00:00"
+device_class: problem
+icon: mdi:alert
+friendly_name: TCL Lyon D disruptions
