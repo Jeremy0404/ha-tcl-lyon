@@ -8,6 +8,8 @@ Trigger Home Assistant automations N minutes before your tram/bus arrives at a s
 > "next passage" sensors, per-line disruption binary sensors, and a Configure flow
 > to add or remove them later.
 
+![Next-passage and disruption sensors created by the integration](images/6-entities-list.png)
+
 ## Requirements
 
 - Home Assistant **2025.2.0** or later (Python 3.13).
@@ -34,14 +36,26 @@ Copy `custom_components/tcl_lyon/` into your HA config's `custom_components/` di
 
 ## Configuration
 
-All configuration is done through the UI. The setup flow will:
+All configuration is done through the UI — no YAML. After adding the integration:
 
-1. Validate your data.grandlyon.com credentials, then download the GTFS catalogue.
-2. Let you search for a stop by name (e.g. "Bellecour") and pick it from the matches.
-3. Let you search and multi-select the lines you want to follow there.
-4. Let you pick the **direction(s)** to follow — each is labelled by its terminus
-   (e.g. "T1 → La Doua"), with an "All directions" option that combines both.
-5. Offer to add another stop, then finish.
+1. **Credentials** — your data.grandlyon.com login is validated, then the GTFS
+   catalogue downloads.
+2. **Find a stop** — type part of a stop name and pick it from the matches.
+
+   ![Search for a stop](images/1-setup-stop.png)
+   ![Pick the stop from the matches](images/2-setup-stop-select.png)
+
+3. **Choose lines** — search and multi-select the lines you want to follow there.
+
+   ![Search a line](images/3-setup-line.png)
+   ![Select the lines](images/4-setup-line-select.png)
+
+4. **Choose directions** — each is labelled by its terminus (e.g. "T2 → Garibaldi"),
+   with an "All directions" option that combines both.
+
+   ![Pick the directions to follow](images/5-setup-direction.png)
+
+5. **Add another stop**, or finish.
 
 To change your stops, lines, or directions later, use the integration's
 **Configure** button (Settings → Devices & Services → TCL Lyon → Configure) to add
@@ -73,6 +87,8 @@ stops):
   - Attribute `disruption_count`: number of active disruptions on the line.
   - Attribute `disruptions`: the full list, each with `situation_number`,
     `description`, `keywords`, `report_type`, and `validity_period`.
+
+  See [a real sensor's attributes](images/7-disruption-example.yaml) for a full example.
 
 ## Automation example
 
