@@ -4,11 +4,14 @@ Custom integration for the **TCL** (Transports en Commun Lyonnais) public transp
 
 Trigger Home Assistant automations N minutes before your tram/bus arrives at a stop, get notified when your line is disrupted, and surface other useful info from the public data.grandlyon.com API.
 
-> **Status:** v0.4.1 — UI setup with stop/line/direction search, per-direction "next passage" sensors, and a Configure flow to add/remove them. Disruption binary sensors are next (v0.5). See [docs/01-plan.md](docs/01-plan.md) for the roadmap.
+> **Status:** v0.6 — UI setup with stop/line/direction search, per-direction "next
+> passage" sensors, per-line disruption binary sensors, and a Configure flow to
+> add/remove them. CI, HACS validation, and tag-driven releases are in place.
+> See [docs/01-plan.md](docs/01-plan.md) for the roadmap.
 
 ## Requirements
 
-- Home Assistant **2024.10.0** or later.
+- Home Assistant **2025.2.0** or later (Python 3.13).
 - A **GrandLyon Connect** account (free): https://moncompte.grandlyon.com/login/
 - A **data password** for data.grandlyon.com, set via the forgot-password flow:
   1. Log out of data.grandlyon.com.
@@ -59,7 +62,18 @@ One sensor is created per (stop, line, direction) you follow:
 > Picking "All directions" instead of a terminus gives a single sensor that reports
 > whichever direction comes next (named `sensor.<line>_<stop>`).
 
-Disruption sensors (**`binary_sensor.tcl_line_<line>_disrupted`**) are coming in v0.5.
+One binary sensor is created per distinct line you follow (deduplicated across
+stops):
+
+- **`binary_sensor.<line>_disruptions`** (`device_class: problem`) — `on` while the
+  line has at least one active disruption in the public `situation-exchange` feed,
+  `off` when clear, `unavailable` while that feed is down.
+  - Attribute `summary`: a human-readable digest (one line per active disruption,
+    the French text TCL publishes) — drop it straight into a notification with no
+    templating.
+  - Attribute `disruption_count`: number of active disruptions on the line.
+  - Attribute `disruptions`: the full list, each with `situation_number`,
+    `description`, `keywords`, `report_type`, and `validity_period`.
 
 ## Automation example
 
@@ -77,6 +91,21 @@ automation:
       - service: notify.mobile_app_my_phone
         data:
           message: "T1 in ~15 min — head out!"
+```
+
+Notify when your line becomes disrupted, using the ready-made `summary`:
+
+```yaml
+automation:
+  - alias: "T1 — disruption alert"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.t1_disruptions
+        to: "on"
+    action:
+      - service: notify.mobile_app_my_phone
+        data:
+          message: "T1 disrupted: {{ state_attr('binary_sensor.t1_disruptions', 'summary') }}"
 ```
 
 ## Development
