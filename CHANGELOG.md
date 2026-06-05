@@ -7,6 +7,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- The SIRI JSON transport now retries transient failures (timeouts, dropped connections, 5xx/429, garbled JSON) with exponential backoff before giving up, so a single blip in the ~58%-uptime feed no longer flaps every entity to "unavailable". Auth (401) and permanent 4xx still fail fast — the former surfacing reauth immediately. Retry is at the client layer, so both coordinators and config-flow credential validation benefit.
+
 ## [0.6.0] - 2026-06-05
 
 ### Added

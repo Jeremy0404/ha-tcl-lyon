@@ -9,7 +9,9 @@ from __future__ import annotations
 import aiohttp
 import pytest
 
+from custom_components.tcl_lyon import api
 from custom_components.tcl_lyon.api import (
+    REQUEST_MAX_ATTEMPTS,
     TclLyonAuthError,
     TclLyonClient,
     TclLyonConnectionError,
@@ -147,3 +149,89 @@ async def test_download_gtfs_writes_body(tmp_path):
 
     assert returned == dest
     assert dest.read_bytes() == b"PK\x03\x04zip-bytes"
+
+
+class SequenceSession:
+    """Hands back a different outcome per .get() call, for retry tests.
+
+    Each outcome is either a FakeResponse (returned) or an Exception (raised on
+    enter, like a timeout or connection drop).
+    """
+
+    def __init__(self, outcomes):
+        self._outcomes = list(outcomes)
+        self.calls = 0
+
+    def get(self, url, *, params=None, auth=None, timeout=None):
+        self.calls += 1
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            return FakeGetCM(raise_on_enter=outcome)
+        return FakeGetCM(outcome)
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    """Skip the real backoff sleep and record the requested delays."""
+    delays: list[float] = []
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    monkeypatch.setattr(api.asyncio, "sleep", fake_sleep)
+    return delays
+
+
+async def test_retries_transient_failure_then_succeeds(no_sleep):
+    payload = {"ok": True}
+    session = SequenceSession([TimeoutError(), FakeResponse(json_data=payload)])
+    client = make_client(session)
+
+    result = await client.async_fetch_situation_exchange()
+
+    assert result == payload
+    assert session.calls == 2  # one failure, one success
+    assert no_sleep == [1.0]  # backed off once between the two attempts
+
+
+async def test_retries_5xx_then_succeeds(no_sleep):
+    payload = {"ok": True}
+    session = SequenceSession([FakeResponse(status=503), FakeResponse(json_data=payload)])
+    client = make_client(session)
+
+    assert await client.async_fetch_situation_exchange() == payload
+    assert session.calls == 2
+
+
+async def test_gives_up_after_max_attempts_with_growing_backoff(no_sleep):
+    session = SequenceSession([TimeoutError()] * REQUEST_MAX_ATTEMPTS)
+    client = make_client(session)
+
+    with pytest.raises(TclLyonConnectionError):
+        await client.async_fetch_situation_exchange()
+
+    assert session.calls == REQUEST_MAX_ATTEMPTS
+    # One sleep fewer than attempts, doubling each time.
+    assert no_sleep == [1.0, 2.0]
+
+
+async def test_auth_error_is_not_retried(no_sleep):
+    session = SequenceSession([FakeResponse(status=401), FakeResponse(json_data={})])
+    client = make_client(session)
+
+    with pytest.raises(TclLyonAuthError):
+        await client.async_fetch_situation_exchange()
+
+    assert session.calls == 1  # failed fast, no retry, no second outcome consumed
+    assert no_sleep == []
+
+
+async def test_permanent_4xx_is_not_retried(no_sleep):
+    session = SequenceSession([FakeResponse(status=404), FakeResponse(json_data={})])
+    client = make_client(session)
+
+    with pytest.raises(TclLyonConnectionError):
+        await client.async_fetch_situation_exchange()
+
+    assert session.calls == 1
+    assert no_sleep == []
