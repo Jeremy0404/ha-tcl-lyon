@@ -1,4 +1,5 @@
 pytest>=9.0.3
 pytest-homeassistant-custom-component>=0.13.316
 pytest-asyncio>=1.4.0
-ruff>=0.6
+pytest-homeassistant-custom-component>=0.13
+ruff>=0.15.16
