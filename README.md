@@ -71,6 +71,20 @@ ruff check .
 pytest
 ```
 
+### Live testing on a real HA instance
+
+`scripts/deploy.ps1` mirrors `custom_components/tcl_lyon/` onto your Home Assistant
+config share (defaults to `\\192.168.1.177\config\`; override with `$env:HA_CONFIG_SHARE`):
+
+```powershell
+pwsh scripts/deploy.ps1            # one-shot mirror, then restart HA yourself
+pwsh scripts/deploy.ps1 -Watch     # re-mirror on every save
+pwsh scripts/deploy.ps1 -Restart   # also restart HA via the API (needs HA_TOKEN in .env)
+```
+
+Python caches imported modules, so changes only take effect after an **HA restart**
+(Developer Tools → YAML → Restart) — a browser refresh is not enough.
+
 Internal docs and discovery notes live in `docs/` (gitignored — local working notes).
 
 ## License
