@@ -7,15 +7,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-05
+
 ### Added
 - Initial scaffold: `custom_components/tcl_lyon/` skeleton, `manifest.json`, `const.py`, minimal `config_flow.py`, `sensor.py` / `binary_sensor.py` placeholders, EN+FR translations, `hacs.json`, `pyproject.toml` with ruff + pytest config, README.
 - Discovery and planning docs under `docs/`.
 - **v0.2 — API client.** `api.py` `TclLyonClient` (async SIRI Lite client with Basic Auth, typed `TclLyonAuthError`/`TclLyonConnectionError`, 401 detection, GTFS download). Pure parsers split into `siri.py` (estimated-timetables → `Departure`, situation-exchange → `Disruption`; `Expected`/`Aimed` fallback, `0001-01-01` sentinel handling, client-side stop filtering) and `gtfs.py` (`GtfsIndex` over stops + routes only, accent-insensitive search). Offline test suite (`tests/test_siri.py`, `test_gtfs.py`, `test_client.py`) with fixtures.
 - **v0.3 — Coordinator + first sensor.** `DeparturesCoordinator` polls estimated-timetables one request per followed line (~45s) and filters calls to the wanted stops client-side, keyed by SIRI LineRef; auth failures surface as `ConfigEntryAuthFailed`, connection failures as `UpdateFailed` so entities degrade to "unavailable" together. `TclDepartureSensor` (CoordinatorEntity) exposes whole minutes until the next non-cancelled passage as state, with a `next_departures` attribute (aimed/expected times, realtime + cancellation flags, minutes-to-go). Wired through `__init__.py` (client + first refresh). One hardcoded stop/line for now — replaced by the config flow in v0.4. Added `tests/test_coordinator.py`.
 - `scripts/deploy.ps1` to mirror the integration onto a live HA config share for testing.
+- **CI/CD.** GitHub Actions running ruff, pytest (3.13), hassfest, and HACS validation on every PR; tag-driven releases that publish a `tcl_lyon.zip` GitHub Release for HACS to install. Dependabot for actions + pip, a Conventional-Commit PR-title check, and a `RELEASING.md` developer guide.
 
 ### Changed
 - GTFS decoding now tries UTF-8 first with a Windows-1252 fallback (`GTFS_ENCODINGS`) instead of assuming cp1252 — the current feed is UTF-8.
+- Raised the minimum supported platform to Home Assistant 2025.2 / Python 3.13.
 
 ## [0.1.0] - 2026-06-04
 
