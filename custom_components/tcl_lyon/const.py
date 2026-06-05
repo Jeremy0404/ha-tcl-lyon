@@ -34,13 +34,16 @@ FORGOT_PASSWORD_URL: Final = "https://data.grandlyon.com/portail/fr/mot-de-passe
 # Inverse of parse_ref for lines: route_id "T2" -> "ActIV:Line::T2:SYTRAL".
 SIRI_LINE_REF_TEMPLATE: Final = "ActIV:Line::{route_id}:SYTRAL"
 
-# Config-flow form fields.
+# Config-flow / options-flow form fields.
 CONF_QUERY: Final = "query"
 CONF_ADD_ANOTHER: Final = "add_another"
+CONF_DIRECTIONS: Final = "directions"
+CONF_REMOVE: Final = "remove"
 
-# Config-entry data model: data[CONF_STOPS] is a list of stop dicts, each with a
-# resolved quay-id set and a list of followed-line dicts — so setup never needs
-# the GTFS index again after the flow has run.
+# Config-entry data model: CONF_STOPS is a list of stop dicts, each with a resolved
+# quay-id set and a list of followed (line, direction) targets — so setup never needs
+# the GTFS index again after the flow has run. The initial config flow writes it to
+# entry.data; the options flow rewrites it to entry.options (which then wins).
 CONF_STOPS: Final = "stops"
 CONF_STOP_ID: Final = "stop_id"
 CONF_STOP_NAME: Final = "stop_name"
@@ -49,6 +52,9 @@ CONF_LINES: Final = "lines"
 CONF_LINE_REF: Final = "line_ref"
 CONF_LINE_ID: Final = "line_id"
 CONF_LINE_NAME: Final = "line_name"
+# direction = SIRI DirectionRef ("inbound"/"outbound"), or None for "all directions".
+CONF_DIRECTION: Final = "direction"
+CONF_DIRECTION_NAME: Final = "direction_name"
 
 ATTR_NEXT_DEPARTURES: Final = "next_departures"
 ATTR_LINE_REF: Final = "line_ref"

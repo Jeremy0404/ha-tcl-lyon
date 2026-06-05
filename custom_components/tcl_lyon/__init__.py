@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -23,8 +24,22 @@ from .coordinator import DeparturesCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 
+def configured_stops(entry: ConfigEntry) -> list[dict[str, Any]]:
+    """The followed stop/line/direction targets.
+
+    Prefers ``entry.options`` (written by the options flow, authoritative once set —
+    including an empty list when the user removes everything) over ``entry.data``
+    (written by the initial config flow).
+    """
+    if CONF_STOPS in entry.options:
+        return entry.options[CONF_STOPS]
+    return entry.data.get(CONF_STOPS, [])
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TCL Lyon from a config entry."""
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_update))
+
     client = TclLyonClient(
         async_get_clientsession(hass),
         entry.data[CONF_USERNAME],
@@ -32,8 +47,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # One poll per distinct line; the union of quays is filtered client-side, then
-    # each sensor narrows that line's calls to its own stop (see sensor.py).
-    stops = entry.data.get(CONF_STOPS, [])
+    # each sensor narrows that line's calls to its own stop + direction (see sensor.py).
+    stops = configured_stops(entry)
     line_refs = {line[CONF_LINE_REF] for stop in stops for line in stop[CONF_LINES]}
     quay_ids = {quay for stop in stops for quay in stop[CONF_QUAY_IDS]}
 
@@ -58,3 +73,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return unload_ok
+
+
+async def _async_reload_on_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Rebuild entities when the options flow edits the followed targets."""
+    await hass.config_entries.async_reload(entry.entry_id)

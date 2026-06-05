@@ -33,7 +33,14 @@
         "title": "Choose lines",
         "description": "Lines to follow at {stop_name}.",
         "data": {
-          "lines": "Lines",
+          "lines": "Lines"
+        }
+      },
+      "direction": {
+        "title": "Choose directions",
+        "description": "Pick which direction(s) to follow at {stop_name}. Each is labelled by its terminus. \"All directions\" combines both (used as a fallback when live data is unavailable).",
+        "data": {
+          "directions": "Directions",
           "add_another": "Add another stop"
         }
       },
@@ -50,11 +57,75 @@
       "cannot_connect": "Unable to reach data.grandlyon.com.",
       "no_results": "No match found. Try a different search.",
       "no_lines": "Pick at least one line.",
+      "no_directions": "Pick at least one direction.",
       "unknown": "Unexpected error."
     },
     "abort": {
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TCL Lyon",
+        "description": "Add or remove the stops and lines you follow.",
+        "menu_options": {
+          "add_stop": "Add a stop / line",
+          "remove_target": "Remove a sensor"
+        }
+      },
+      "stop": {
+        "title": "Find a stop",
+        "description": "Type part of a stop name (e.g. \"Bellecour\").",
+        "data": {
+          "query": "Stop search"
+        }
+      },
+      "pick_stop": {
+        "title": "Choose a stop",
+        "data": {
+          "stop_id": "Stop"
+        }
+      },
+      "line": {
+        "title": "Find a line",
+        "description": "Which lines do you want to follow at {stop_name}? Type part of a line name or number (e.g. \"T2\", \"C3\", \"27\").",
+        "data": {
+          "query": "Line search"
+        }
+      },
+      "pick_line": {
+        "title": "Choose lines",
+        "description": "Lines to follow at {stop_name}.",
+        "data": {
+          "lines": "Lines"
+        }
+      },
+      "direction": {
+        "title": "Choose directions",
+        "description": "Pick which direction(s) to follow at {stop_name}. Each is labelled by its terminus. \"All directions\" combines both (used as a fallback when live data is unavailable).",
+        "data": {
+          "directions": "Directions",
+          "add_another": "Add another stop"
+        }
+      },
+      "remove_target": {
+        "title": "Remove sensors",
+        "description": "Select the sensors to remove.",
+        "data": {
+          "remove": "Sensors"
+        }
+      }
+    },
+    "error": {
+      "no_results": "No match found. Try a different search.",
+      "no_lines": "Pick at least one line.",
+      "no_directions": "Pick at least one direction."
+    },
+    "abort": {
+      "cannot_connect": "Unable to reach data.grandlyon.com.",
+      "nothing_to_remove": "There are no sensors to remove yet."
     }
   }
 }

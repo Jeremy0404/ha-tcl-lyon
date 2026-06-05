@@ -27,6 +27,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
+from . import configured_stops
 from .api import Departure
 from .const import (
     ATTR_AIMED_TIME,
@@ -38,6 +39,8 @@ from .const import (
     ATTR_LINE_REF,
     ATTR_MINUTES,
     ATTR_NEXT_DEPARTURES,
+    CONF_DIRECTION,
+    CONF_DIRECTION_NAME,
     CONF_LINE_ID,
     CONF_LINE_NAME,
     CONF_LINE_REF,
@@ -45,7 +48,6 @@ from .const import (
     CONF_QUAY_IDS,
     CONF_STOP_ID,
     CONF_STOP_NAME,
-    CONF_STOPS,
     DOMAIN,
     MAX_DEPARTURES,
 )
@@ -57,22 +59,22 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up one sensor per (stop, line) configured in the entry."""
+    """Set up one sensor per (stop, line, direction) configured in the entry."""
     coordinator: DeparturesCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[TclDepartureSensor] = []
-    seen: set[tuple[str, str]] = set()
-    for stop in entry.data.get(CONF_STOPS, []):
-        for line in stop[CONF_LINES]:
-            key = (stop[CONF_STOP_ID], line[CONF_LINE_ID])
-            if key in seen:  # guard against a duplicate (stop, line) → unique_id clash
+    seen: set[tuple[str, str, str | None]] = set()
+    for stop in configured_stops(entry):
+        for target in stop[CONF_LINES]:
+            key = (stop[CONF_STOP_ID], target[CONF_LINE_ID], target.get(CONF_DIRECTION))
+            if key in seen:  # guard against a duplicate target → unique_id clash
                 continue
             seen.add(key)
-            entities.append(TclDepartureSensor(coordinator, stop, line))
+            entities.append(TclDepartureSensor(coordinator, stop, target))
     async_add_entities(entities)
 
 
 class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity):
-    """Minutes until the next passage of a line at a stop."""
+    """Minutes until the next passage of a line at a stop, in one direction."""
 
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
     _attr_icon = "mdi:tram"
@@ -81,15 +83,19 @@ class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity)
         self,
         coordinator: DeparturesCoordinator,
         stop: dict[str, object],
-        line: dict[str, object],
+        target: dict[str, object],
     ) -> None:
         super().__init__(coordinator)
-        self._line_ref = line[CONF_LINE_REF]
+        self._line_ref = target[CONF_LINE_REF]
         # A station fans out to several SIRI quays; match any of them.
         self._quay_ids = frozenset(stop[CONF_QUAY_IDS])
+        # None = follow every direction (the v0.4 behaviour, kept as an option).
+        self._direction = target.get(CONF_DIRECTION)
         entry_id = coordinator.config_entry.entry_id
-        self._attr_unique_id = f"{entry_id}_{stop[CONF_STOP_ID]}_{line[CONF_LINE_ID]}"
-        self._attr_name = f"{line[CONF_LINE_NAME]} @ {stop[CONF_STOP_NAME]}"
+        self._attr_unique_id = (
+            f"{entry_id}_{stop[CONF_STOP_ID]}_{target[CONF_LINE_ID]}_{self._direction or 'all'}"
+        )
+        self._attr_name = _sensor_name(stop, target)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name="TCL Lyon",
@@ -116,9 +122,14 @@ class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity)
         }
 
     def _stop_departures(self) -> list[Departure]:
-        """This stop's departures, soonest-first (the coordinator already sorts)."""
+        """This stop's departures in this direction, soonest-first (already sorted)."""
         rows = (self.coordinator.data or {}).get(self._line_ref, [])
-        return [d for d in rows if d.stop_id in self._quay_ids]
+        return [
+            d
+            for d in rows
+            if d.stop_id in self._quay_ids
+            and (self._direction is None or d.direction == self._direction)
+        ]
 
     def _next_departure(self, now: datetime) -> Departure | None:
         """Soonest non-cancelled departure still in the future."""
@@ -128,6 +139,14 @@ class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity)
             if departure.time >= now:
                 return departure
         return None
+
+
+def _sensor_name(stop: dict[str, object], target: dict[str, object]) -> str:
+    line = target[CONF_LINE_NAME]
+    stop_name = stop[CONF_STOP_NAME]
+    if target.get(CONF_DIRECTION) is None:
+        return f"{line} @ {stop_name}"
+    return f"{line} → {target[CONF_DIRECTION_NAME]} @ {stop_name}"
 
 
 def _minutes_until(when: datetime, now: datetime) -> int:

@@ -33,7 +33,14 @@
         "title": "Choisir les lignes",
         "description": "Lignes à suivre à {stop_name}.",
         "data": {
-          "lines": "Lignes",
+          "lines": "Lignes"
+        }
+      },
+      "direction": {
+        "title": "Choisir les directions",
+        "description": "Choisissez la ou les directions à suivre à {stop_name}. Chacune est étiquetée par son terminus. « Toutes directions » regroupe les deux sens (utilisé en repli quand le temps réel est indisponible).",
+        "data": {
+          "directions": "Directions",
           "add_another": "Ajouter un autre arrêt"
         }
       },
@@ -50,11 +57,75 @@
       "cannot_connect": "Impossible de joindre data.grandlyon.com.",
       "no_results": "Aucun résultat. Essayez une autre recherche.",
       "no_lines": "Sélectionnez au moins une ligne.",
+      "no_directions": "Sélectionnez au moins une direction.",
       "unknown": "Erreur inattendue."
     },
     "abort": {
       "already_configured": "Ce compte est déjà configuré.",
       "reauth_successful": "Ré-authentification réussie."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TCL Lyon",
+        "description": "Ajoutez ou retirez les arrêts et lignes que vous suivez.",
+        "menu_options": {
+          "add_stop": "Ajouter un arrêt / une ligne",
+          "remove_target": "Retirer un capteur"
+        }
+      },
+      "stop": {
+        "title": "Rechercher un arrêt",
+        "description": "Tapez une partie du nom d'un arrêt (ex. « Bellecour »).",
+        "data": {
+          "query": "Recherche d'arrêt"
+        }
+      },
+      "pick_stop": {
+        "title": "Choisir un arrêt",
+        "data": {
+          "stop_id": "Arrêt"
+        }
+      },
+      "line": {
+        "title": "Rechercher une ligne",
+        "description": "Quelles lignes voulez-vous suivre à {stop_name} ? Tapez une partie du nom ou du numéro (ex. « T2 », « C3 », « 27 »).",
+        "data": {
+          "query": "Recherche de ligne"
+        }
+      },
+      "pick_line": {
+        "title": "Choisir les lignes",
+        "description": "Lignes à suivre à {stop_name}.",
+        "data": {
+          "lines": "Lignes"
+        }
+      },
+      "direction": {
+        "title": "Choisir les directions",
+        "description": "Choisissez la ou les directions à suivre à {stop_name}. Chacune est étiquetée par son terminus. « Toutes directions » regroupe les deux sens (utilisé en repli quand le temps réel est indisponible).",
+        "data": {
+          "directions": "Directions",
+          "add_another": "Ajouter un autre arrêt"
+        }
+      },
+      "remove_target": {
+        "title": "Retirer des capteurs",
+        "description": "Sélectionnez les capteurs à retirer.",
+        "data": {
+          "remove": "Capteurs"
+        }
+      }
+    },
+    "error": {
+      "no_results": "Aucun résultat. Essayez une autre recherche.",
+      "no_lines": "Sélectionnez au moins une ligne.",
+      "no_directions": "Sélectionnez au moins une direction."
+    },
+    "abort": {
+      "cannot_connect": "Impossible de joindre data.grandlyon.com.",
+      "nothing_to_remove": "Aucun capteur à retirer pour le moment."
     }
   }
 }

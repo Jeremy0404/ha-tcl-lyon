@@ -4,7 +4,7 @@ Custom integration for the **TCL** (Transports en Commun Lyonnais) public transp
 
 Trigger Home Assistant automations N minutes before your tram/bus arrives at a stop, get notified when your line is disrupted, and surface other useful info from the public data.grandlyon.com API.
 
-> **Status:** v0.4 — UI setup with stop/line search and live "next passage" sensors. Disruption binary sensors are next (v0.5). See [docs/01-plan.md](docs/01-plan.md) for the roadmap.
+> **Status:** v0.4.1 — UI setup with stop/line/direction search, per-direction "next passage" sensors, and a Configure flow to add/remove them. Disruption binary sensors are next (v0.5). See [docs/01-plan.md](docs/01-plan.md) for the roadmap.
 
 ## Requirements
 
@@ -37,24 +37,27 @@ All configuration is done through the UI. The setup flow will:
 1. Validate your data.grandlyon.com credentials, then download the GTFS catalogue.
 2. Let you search for a stop by name (e.g. "Bellecour") and pick it from the matches.
 3. Let you search and multi-select the lines you want to follow there.
-4. Offer to add another stop, then finish.
+4. Let you pick the **direction(s)** to follow — each is labelled by its terminus
+   (e.g. "T1 → La Doua"), with an "All directions" option that combines both.
+5. Offer to add another stop, then finish.
 
-To change your stops or lines later, remove and re-add the integration (an in-place
-editor is planned). If your data password stops working, Home Assistant prompts you
-to re-enter it without losing your stops.
+To change your stops, lines, or directions later, use the integration's
+**Configure** button (Settings → Devices & Services → TCL Lyon → Configure) to add
+or remove sensors — no need to re-enter credentials. If your data password stops
+working, Home Assistant prompts you to re-enter it without losing your stops.
 
 ## Entities
 
-One sensor is created per (stop, line) you follow:
+One sensor is created per (stop, line, direction) you follow:
 
-- **`sensor.<line>_<stop>`** (e.g. `sensor.t2_bron_hotel_de_ville`) — whole minutes
-  until the next passage of that line at that stop. `unavailable` while the API is
-  down; empty when no passage is currently known.
+- **`sensor.<line>_<terminus>_<stop>`** (e.g. `sensor.t1_la_doua_bellecour`) — whole
+  minutes until the next passage of that line **in that direction** at that stop.
+  `unavailable` while the API is down; empty when no passage is currently known.
   - Attribute `next_departures`: upcoming passes with aimed/expected times, a
     realtime flag, a cancellation flag, the direction/destination, and minutes-to-go.
 
-> Both directions of a line at a stop share one sensor for now — use the
-> `direction`/`destination` fields in `next_departures` to tell them apart.
+> Picking "All directions" instead of a terminus gives a single sensor that reports
+> whichever direction comes next (named `sensor.<line>_<stop>`).
 
 Disruption sensors (**`binary_sensor.tcl_line_<line>_disrupted`**) are coming in v0.5.
 
@@ -67,7 +70,7 @@ automation:
   - alias: "Bellecour T1 — leave soon"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.t1_bellecour
+        entity_id: sensor.t1_la_doua_bellecour
         below: 16
         above: 14
     action:
