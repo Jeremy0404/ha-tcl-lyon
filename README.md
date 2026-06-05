@@ -4,10 +4,9 @@ Custom integration for the **TCL** (Transports en Commun Lyonnais) public transp
 
 Trigger Home Assistant automations N minutes before your tram/bus arrives at a stop, get notified when your line is disrupted, and surface other useful info from the public data.grandlyon.com API.
 
-> **Status:** v0.6 — UI setup with stop/line/direction search, per-direction "next
-> passage" sensors, per-line disruption binary sensors, and a Configure flow to
-> add/remove them. CI, HACS validation, and tag-driven releases are in place.
-> See [docs/01-plan.md](docs/01-plan.md) for the roadmap.
+> **Status:** Working — UI setup with stop / line / direction search, per-direction
+> "next passage" sensors, per-line disruption binary sensors, and a Configure flow
+> to add or remove them later.
 
 ## Requirements
 
@@ -110,27 +109,13 @@ automation:
 
 ## Development
 
+Contributions are welcome. Install the dev dependencies and run the checks:
+
 ```bash
 pip install -r requirements-dev.txt
 ruff check .
 pytest
 ```
-
-### Live testing on a real HA instance
-
-`scripts/deploy.ps1` mirrors `custom_components/tcl_lyon/` onto your Home Assistant
-config share (defaults to `\\192.168.1.177\config\`; override with `$env:HA_CONFIG_SHARE`):
-
-```powershell
-pwsh scripts/deploy.ps1            # one-shot mirror, then restart HA yourself
-pwsh scripts/deploy.ps1 -Watch     # re-mirror on every save
-pwsh scripts/deploy.ps1 -Restart   # also restart HA via the API (needs HA_TOKEN in .env)
-```
-
-Python caches imported modules, so changes only take effect after an **HA restart**
-(Developer Tools → YAML → Restart) — a browser refresh is not enough.
-
-Internal docs and discovery notes live in `docs/` (gitignored — local working notes).
 
 ## License
 
