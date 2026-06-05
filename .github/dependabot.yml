@@ -8,7 +8,7 @@ updates:
       actions:
         patterns: ["*"]
     commit-message:
-      prefix: ci
+      prefix: chore
 
   - package-ecosystem: pip
     directory: "/"
