@@ -7,6 +7,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    commit-message:
+      prefix: ci
 
   - package-ecosystem: pip
     directory: "/"
@@ -16,3 +18,5 @@ updates:
       # Pinned transitively by pytest-homeassistant-custom-component; let it drive these.
       - dependency-name: pytest
       - dependency-name: pytest-asyncio
+    commit-message:
+      prefix: chore
