@@ -15,6 +15,16 @@ yarn-error.log*
 CLAUDE.md
 docs/*
 
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+
 # Local secrets
 .env
 .env.local

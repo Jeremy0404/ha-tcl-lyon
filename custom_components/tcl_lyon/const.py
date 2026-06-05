@@ -17,7 +17,9 @@ SIRI_VEHICLE_MONITORING_URL: Final = f"{SIRI_BASE_URL}/vehicle-monitoring.json"
 GTFS_DOWNLOAD_URL: Final = (
     "https://download.data.grandlyon.com/files/rdata/tcl_sytral.tcltheorique/GTFS_TCL.ZIP"
 )
-GTFS_ENCODING: Final = "cp1252"
+# The feed's encoding has been observed as both UTF-8 (current) and Windows-1252
+# (POC, 2026-06-04). Decode UTF-8 first, fall back to cp1252, rather than assuming.
+GTFS_ENCODINGS: Final = ("utf-8", "cp1252")
 
 DEFAULT_DEPARTURES_INTERVAL: Final = timedelta(seconds=45)
 DEFAULT_DISRUPTIONS_INTERVAL: Final = timedelta(minutes=5)

@@ -1,0 +1,61 @@
+{
+  "Siri": {
+    "ServiceDelivery": {
+      "ResponseTimestamp": "2026-06-04T20:17:05.625066426Z",
+      "ProducerRef": { "value": "MDL" },
+      "EstimatedTimetableDelivery": [
+        {
+          "EstimatedJourneyVersionFrame": [
+            {
+              "EstimatedVehicleJourney": [
+                {
+                  "LineRef": { "value": "ActIV:Line::T2:SYTRAL" },
+                  "DirectionRef": { "value": "outbound" },
+                  "DestinationRef": { "value": "ActIV:StopArea:SP:33219:SYTRAL" },
+                  "Cancellation": false,
+                  "DataSource": "TCL",
+                  "EstimatedCalls": {
+                    "EstimatedCall": [
+                      {
+                        "StopPointRef": { "value": "ActIV:StopArea:SP:32166:SYTRAL" },
+                        "Order": 18,
+                        "Cancellation": false,
+                        "AimedArrivalTime": "2026-06-04T20:15:38Z",
+                        "ExpectedArrivalTime": "2026-06-04T20:15:20Z",
+                        "AimedDepartureTime": "2026-06-04T20:15:38Z"
+                      },
+                      {
+                        "StopPointRef": { "value": "ActIV:StopArea:SP:32168:SYTRAL" },
+                        "Order": 19,
+                        "Cancellation": false,
+                        "AimedArrivalTime": "2026-06-04T20:21:10Z",
+                        "AimedDepartureTime": "2026-06-04T20:21:10Z"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineRef": { "value": "ActIV:Line::T2:SYTRAL" },
+                  "DirectionRef": { "value": "inbound" },
+                  "DestinationRef": { "value": "ActIV:StopArea:SP:32166:SYTRAL" },
+                  "Cancellation": true,
+                  "DataSource": "TCL",
+                  "EstimatedCalls": {
+                    "EstimatedCall": [
+                      {
+                        "StopPointRef": { "value": "ActIV:StopArea:SP:32166:SYTRAL" },
+                        "Order": 5,
+                        "Cancellation": true,
+                        "AimedArrivalTime": "2026-06-04T20:25:00Z"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
