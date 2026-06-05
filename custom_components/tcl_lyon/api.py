@@ -13,6 +13,8 @@ testable offline. See docs/02-data-sources.md for the API contracts.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,6 +40,8 @@ from .siri import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+_LOGGER = logging.getLogger(__name__)
+
 __all__ = [
     "Departure",
     "Disruption",
@@ -59,6 +63,13 @@ __all__ = [
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
 GTFS_TIMEOUT = aiohttp.ClientTimeout(total=120)
 
+# Smooth over the SIRI feed's ~58% uptime: retry transient failures (timeouts,
+# dropped connections, 5xx/429, garbled JSON) with exponential backoff before a
+# poll gives up, so a single blip doesn't flap every entity to "unavailable".
+# Auth (401) and permanent 4xx fail fast — retrying them is pointless.
+REQUEST_MAX_ATTEMPTS = 3
+RETRY_BACKOFF_BASE_SECONDS = 1.0
+
 
 class TclLyonError(Exception):
     """Base error for the TCL Lyon client."""
@@ -69,7 +80,15 @@ class TclLyonAuthError(TclLyonError):
 
 
 class TclLyonConnectionError(TclLyonError):
-    """The endpoint could not be reached, timed out, or returned a server error."""
+    """The endpoint could not be reached, timed out, or returned a server error.
+
+    ``retryable`` marks transient failures worth retrying (timeouts, dropped
+    connections, 5xx/429, garbled JSON). A permanent 4xx sets it ``False``.
+    """
+
+    def __init__(self, message: str, *, retryable: bool = True) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 class TclLyonClient:
@@ -121,6 +140,28 @@ class TclLyonClient:
         return destination
 
     async def _get_json(self, url: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:
+        """GET JSON, retrying transient failures with exponential backoff."""
+        for attempt in range(1, REQUEST_MAX_ATTEMPTS + 1):
+            try:
+                return await self._get_json_once(url, params=params)
+            except TclLyonConnectionError as err:
+                if not err.retryable or attempt == REQUEST_MAX_ATTEMPTS:
+                    raise
+                delay = RETRY_BACKOFF_BASE_SECONDS * 2 ** (attempt - 1)
+                _LOGGER.debug(
+                    "%s failed (%s); retrying in %.1fs (attempt %d/%d)",
+                    url,
+                    err,
+                    delay,
+                    attempt,
+                    REQUEST_MAX_ATTEMPTS,
+                )
+                await asyncio.sleep(delay)
+        raise AssertionError("unreachable")  # the loop returns or raises
+
+    async def _get_json_once(
+        self, url: str, *, params: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         async with self._request(url, params=params, timeout=REQUEST_TIMEOUT) as response:
             try:
                 # content_type=None: the endpoint sometimes mislabels JSON as text.
@@ -151,6 +192,10 @@ class TclLyonClient:
         except TclLyonError:
             raise
         except aiohttp.ClientResponseError as err:
-            raise TclLyonConnectionError(f"HTTP {err.status} from {url}") from err
+            # 5xx/429 are worth retrying; a permanent 4xx (e.g. 404) is not.
+            retryable = err.status >= 500 or err.status == 429
+            raise TclLyonConnectionError(
+                f"HTTP {err.status} from {url}", retryable=retryable
+            ) from err
         except (TimeoutError, aiohttp.ClientError) as err:
             raise TclLyonConnectionError(str(err) or type(err).__name__) from err
