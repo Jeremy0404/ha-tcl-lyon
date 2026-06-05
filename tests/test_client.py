@@ -6,8 +6,6 @@ the status/error mapping and the request shape.
 
 from __future__ import annotations
 
-import asyncio
-
 import aiohttp
 import pytest
 
@@ -67,9 +65,7 @@ class FakeSession:
         self.calls: list[dict] = []
 
     def get(self, url, *, params=None, auth=None, timeout=None):
-        self.calls.append(
-            {"url": url, "params": params, "auth": auth, "timeout": timeout}
-        )
+        self.calls.append({"url": url, "params": params, "auth": auth, "timeout": timeout})
         return FakeGetCM(self._response, self._raise_on_enter)
 
 
@@ -122,7 +118,7 @@ async def test_server_error_raises_connection_error():
 
 
 async def test_timeout_raises_connection_error():
-    session = FakeSession(raise_on_enter=asyncio.TimeoutError())
+    session = FakeSession(raise_on_enter=TimeoutError())
     client = make_client(session)
     with pytest.raises(TclLyonConnectionError):
         await client.async_fetch_situation_exchange()

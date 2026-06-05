@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .const import SIRI_NAMESPACE_SUFFIXES, UNRECORDED_TIME_SENTINEL
 
@@ -65,7 +65,7 @@ def parse_time(value: str | None) -> datetime | None:
         parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,9 +93,7 @@ class Departure:
         return self.expected is not None
 
 
-def parse_departures(
-    payload: dict, *, stop_ids: Iterable[str] | None = None
-) -> list[Departure]:
+def parse_departures(payload: dict, *, stop_ids: Iterable[str] | None = None) -> list[Departure]:
     """Flatten an estimated-timetables payload into Departure rows, soonest first.
 
     When ``stop_ids`` is given, only calls at those GTFS stops are kept — the server
@@ -128,8 +126,7 @@ def parse_departures(
                         call.get("AimedArrivalTime") or call.get("AimedDepartureTime")
                     ),
                     expected=parse_time(
-                        call.get("ExpectedArrivalTime")
-                        or call.get("ExpectedDepartureTime")
+                        call.get("ExpectedArrivalTime") or call.get("ExpectedDepartureTime")
                     ),
                     cancelled=journey_cancelled or bool(call.get("Cancellation")),
                 )
@@ -152,9 +149,7 @@ class Disruption:
     creation_time: datetime | None
 
 
-def parse_situations(
-    payload: dict, *, line_refs: Iterable[str] | None = None
-) -> list[Disruption]:
+def parse_situations(payload: dict, *, line_refs: Iterable[str] | None = None) -> list[Disruption]:
     """Flatten a situation-exchange payload into Disruption rows.
 
     When ``line_refs`` (raw SIRI LineRefs) is given, only situations touching at
@@ -217,22 +212,18 @@ def _int(value: object) -> int | None:
 
 def _departure_sort_key(departure: Departure) -> tuple[bool, datetime]:
     when = departure.time
-    return (when is None, when or datetime.max.replace(tzinfo=timezone.utc))
+    return (when is None, when or datetime.max.replace(tzinfo=UTC))
 
 
 def _iter_journeys(payload: dict) -> Iterator[dict]:
-    deliveries = (
-        _service_delivery(payload).get("EstimatedTimetableDelivery") or []
-    )
+    deliveries = _service_delivery(payload).get("EstimatedTimetableDelivery") or []
     for delivery in deliveries:
         for frame in delivery.get("EstimatedJourneyVersionFrame") or []:
             yield from frame.get("EstimatedVehicleJourney") or []
 
 
 def _iter_situations(payload: dict) -> Iterator[dict]:
-    deliveries = (
-        _service_delivery(payload).get("SituationExchangeDelivery") or []
-    )
+    deliveries = _service_delivery(payload).get("SituationExchangeDelivery") or []
     for delivery in deliveries:
         situations = (delivery.get("Situations") or {}).get("PtSituationElement") or []
         yield from situations

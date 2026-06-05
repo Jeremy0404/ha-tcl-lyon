@@ -14,7 +14,11 @@ from pathlib import Path
 import pytest
 
 try:  # pragma: no cover - environment dependent
-    import pytest_homeassistant_custom_component  # noqa: F401
+    # homeassistant.runner imports fcntl, so this fails on native Windows even
+    # though the package installs — a faithful proxy for "the HA test harness
+    # (and its pytest plugin) can load here". Gating on it lets the pure parser
+    # suite still run on Windows via `pytest -p no:homeassistant`.
+    import homeassistant.runner  # noqa: F401
 
     _HAS_HA = True
 except ImportError:  # pragma: no cover - environment dependent
@@ -31,6 +35,6 @@ def load_fixture(name: str) -> dict:
 if _HAS_HA:
 
     @pytest.fixture(autouse=True)
-    def auto_enable_custom_integrations(enable_custom_integrations):  # noqa: ARG001
+    def auto_enable_custom_integrations(enable_custom_integrations):
         """Enable loading custom integrations during HA-backed tests."""
         return

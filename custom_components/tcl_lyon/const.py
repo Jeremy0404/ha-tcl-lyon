@@ -25,6 +25,15 @@ DEFAULT_DEPARTURES_INTERVAL: Final = timedelta(seconds=45)
 DEFAULT_DISRUPTIONS_INTERVAL: Final = timedelta(minutes=5)
 GTFS_REFRESH_INTERVAL: Final = timedelta(days=7)
 
+# Most upcoming passages exposed in the sensor's attribute list.
+MAX_DEPARTURES: Final = 10
+
+# v0.3 hardcode — one stop/line to validate the end-to-end poll on the real HA
+# before the config flow exists. Replaced by the user's selection in v0.4.
+# T2 at stop 32166 is the POC's reference pair (see docs/03-poc-findings.md).
+V03_DEFAULT_LINE_REF: Final = "ActIV:Line::T2:SYTRAL"
+V03_DEFAULT_STOP_ID: Final = "32166"
+
 CONF_STOPS: Final = "stops"
 CONF_LINES: Final = "lines"
 CONF_STOP_ID: Final = "stop_id"
@@ -38,6 +47,8 @@ ATTR_DESTINATION: Final = "destination"
 ATTR_AIMED_TIME: Final = "aimed_time"
 ATTR_EXPECTED_TIME: Final = "expected_time"
 ATTR_IS_REALTIME: Final = "is_realtime"
+ATTR_CANCELLED: Final = "cancelled"
+ATTR_MINUTES: Final = "minutes"
 ATTR_DISRUPTIONS: Final = "disruptions"
 ATTR_VALIDITY_PERIOD: Final = "validity_period"
 

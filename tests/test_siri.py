@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -15,7 +15,7 @@ from custom_components.tcl_lyon.siri import (
 
 from .conftest import load_fixture
 
-UTC = timezone.utc
+UTC = UTC
 
 
 @pytest.mark.parametrize(
@@ -62,7 +62,7 @@ def test_parse_time_returns_none_for_sentinel_and_garbage(value):
 def test_parse_departures_flattens_and_sorts():
     departures = parse_departures(load_fixture("estimated_timetables.json"))
 
-    # Two journeys × their calls = three departures total.
+    # Two journeys, three calls between them = three departures total.
     assert len(departures) == 3
     # Sorted soonest-first by best-available time.
     assert [d.time.isoformat() for d in departures] == [

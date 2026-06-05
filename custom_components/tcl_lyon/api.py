@@ -13,7 +13,6 @@ testable offline. See docs/02-data-sources.md for the API contracts.
 
 from __future__ import annotations
 
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -39,19 +38,19 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 __all__ = [
-    "TclLyonClient",
-    "TclLyonError",
-    "TclLyonAuthError",
-    "TclLyonConnectionError",
-    "GtfsIndex",
-    "GtfsError",
-    "Stop",
-    "Route",
     "Departure",
     "Disruption",
+    "GtfsError",
+    "GtfsIndex",
+    "Route",
+    "Stop",
+    "TclLyonAuthError",
+    "TclLyonClient",
+    "TclLyonConnectionError",
+    "TclLyonError",
     "parse_departures",
-    "parse_situations",
     "parse_ref",
+    "parse_situations",
     "parse_time",
 ]
 
@@ -79,17 +78,13 @@ class TclLyonClient:
     / :func:`.parse_situations` to get structured rows.
     """
 
-    def __init__(
-        self, session: aiohttp.ClientSession, username: str, password: str
-    ) -> None:
+    def __init__(self, session: aiohttp.ClientSession, username: str, password: str) -> None:
         self._session = session
         self._auth = aiohttp.BasicAuth(username, password)
 
     async def async_fetch_estimated_timetables(self, line_ref: str) -> dict[str, Any]:
         """Raw estimated-timetables payload for one line (server honours ?LineRef=)."""
-        return await self._get_json(
-            SIRI_ESTIMATED_TIMETABLES_URL, params={"LineRef": line_ref}
-        )
+        return await self._get_json(SIRI_ESTIMATED_TIMETABLES_URL, params={"LineRef": line_ref})
 
     async def async_fetch_situation_exchange(self) -> dict[str, Any]:
         """Raw situation-exchange payload (bulk — the feed isn't server-filterable)."""
@@ -116,9 +111,7 @@ class TclLyonClient:
         destination.write_bytes(data)
         return destination
 
-    async def _get_json(
-        self, url: str, *, params: dict[str, str] | None = None
-    ) -> dict[str, Any]:
+    async def _get_json(self, url: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:
         async with self._request(url, params=params, timeout=REQUEST_TIMEOUT) as response:
             try:
                 # content_type=None: the endpoint sometimes mislabels JSON as text.
@@ -150,5 +143,5 @@ class TclLyonClient:
             raise
         except aiohttp.ClientResponseError as err:
             raise TclLyonConnectionError(f"HTTP {err.status} from {url}") from err
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise TclLyonConnectionError(str(err) or type(err).__name__) from err
