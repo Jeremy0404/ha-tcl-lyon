@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches manifest version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(jq -r .version custom_components/tcl_lyon/manifest.json)"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $manifest"
+            exit 1
+          fi
+
+      - name: Build zip
+        run: |
+          cd custom_components/tcl_lyon
+          zip -r "$GITHUB_WORKSPACE/tcl_lyon.zip" . -x '*__pycache__*' '*.pyc'
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: tcl_lyon.zip
+          generate_release_notes: true
