@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -19,9 +20,17 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
-from .coordinator import DeparturesCoordinator
+from .coordinator import DeparturesCoordinator, DisruptionsCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class TclLyonData:
+    """The two coordinators backing an entry's entities, stored in hass.data."""
+
+    departures: DeparturesCoordinator
+    disruptions: DisruptionsCoordinator
 
 
 def configured_stops(entry: ConfigEntry) -> list[dict[str, Any]]:
@@ -52,16 +61,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     line_refs = {line[CONF_LINE_REF] for stop in stops for line in stop[CONF_LINES]}
     quay_ids = {quay for stop in stops for quay in stop[CONF_QUAY_IDS]}
 
-    coordinator = DeparturesCoordinator(
+    departures = DeparturesCoordinator(
         hass,
         entry,
         client,
         line_refs=line_refs,
         stop_ids=quay_ids,
     )
-    await coordinator.async_config_entry_first_refresh()
+    await departures.async_config_entry_first_refresh()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    # Disruptions are secondary; refresh best-effort so a situation-exchange outage
+    # (the feed's ~58% uptime) doesn't block setup. Auth/readiness is gated above.
+    disruptions = DisruptionsCoordinator(hass, entry, client, line_refs=line_refs)
+    await disruptions.async_refresh()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = TclLyonData(departures, disruptions)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

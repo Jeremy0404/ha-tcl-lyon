@@ -27,7 +27,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from . import configured_stops
+from . import TclLyonData, configured_stops
 from .api import Departure
 from .const import (
     ATTR_AIMED_TIME,
@@ -60,7 +60,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up one sensor per (stop, line, direction) configured in the entry."""
-    coordinator: DeparturesCoordinator = hass.data[DOMAIN][entry.entry_id]
+    data: TclLyonData = hass.data[DOMAIN][entry.entry_id]
+    coordinator = data.departures
     entities: list[TclDepartureSensor] = []
     seen: set[tuple[str, str, str | None]] = set()
     for stop in configured_stops(entry):

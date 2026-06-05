@@ -66,7 +66,13 @@ ATTR_IS_REALTIME: Final = "is_realtime"
 ATTR_CANCELLED: Final = "cancelled"
 ATTR_MINUTES: Final = "minutes"
 ATTR_DISRUPTIONS: Final = "disruptions"
+ATTR_DISRUPTION_COUNT: Final = "disruption_count"
+ATTR_SUMMARY: Final = "summary"
 ATTR_VALIDITY_PERIOD: Final = "validity_period"
+ATTR_SITUATION_NUMBER: Final = "situation_number"
+ATTR_DESCRIPTION: Final = "description"
+ATTR_KEYWORDS: Final = "keywords"
+ATTR_REPORT_TYPE: Final = "report_type"
 
 SIRI_NAMESPACE_PREFIX: Final = "ActIV:"
 SIRI_NAMESPACE_SUFFIXES: Final = (":SYTRAL", ":LOC")
