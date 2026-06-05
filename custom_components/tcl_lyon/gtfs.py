@@ -71,9 +71,13 @@ class GtfsIndex:
     def from_zip(cls, zip_path: str | Path) -> GtfsIndex:
         """Build the index from a GTFS zip, reading only stops.txt and routes.txt."""
         with zipfile.ZipFile(Path(zip_path)) as archive:
-            stops = _parse_stops(_read_member(archive, STOPS_FILE))
-            routes = _parse_routes(_read_member(archive, ROUTES_FILE))
-        return cls(stops, routes)
+            return cls._from_archive(archive)
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> GtfsIndex:
+        """Build the index from a GTFS zip held in memory (config-flow download)."""
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            return cls._from_archive(archive)
 
     @classmethod
     def from_dir(cls, directory: str | Path) -> GtfsIndex:
@@ -83,6 +87,12 @@ class GtfsIndex:
             _parse_stops(_read_file(base / STOPS_FILE)),
             _parse_routes(_read_file(base / ROUTES_FILE)),
         )
+
+    @classmethod
+    def _from_archive(cls, archive: zipfile.ZipFile) -> GtfsIndex:
+        stops = _parse_stops(_read_member(archive, STOPS_FILE))
+        routes = _parse_routes(_read_member(archive, ROUTES_FILE))
+        return cls(stops, routes)
 
     def search_stops(
         self, query: str, *, stations_only: bool = True, limit: int = 50
@@ -121,6 +131,18 @@ class GtfsIndex:
                 matches.append((1, long, route))
         matches.sort(key=lambda match: (match[0], match[1]))
         return [match[2] for match in matches[:limit]]
+
+    def quay_ids(self, stop_id: str) -> list[str]:
+        """SIRI StopPointRef ids to match for the stop the user picked.
+
+        SIRI refers to physical quays (``location_type=0``), never to the parent
+        station a user searches for, so a station expands to its child quays. A
+        quay (or a childless/standalone stop) maps to just itself.
+        """
+        children = sorted(
+            child.stop_id for child in self.stops.values() if child.parent_station == stop_id
+        )
+        return children or [stop_id]
 
 
 # --- internal helpers -------------------------------------------------------

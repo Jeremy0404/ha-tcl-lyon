@@ -28,6 +28,7 @@ from .gtfs import GtfsError, GtfsIndex, Route, Stop
 from .siri import (
     Departure,
     Disruption,
+    build_line_ref,
     parse_departures,
     parse_ref,
     parse_situations,
@@ -48,6 +49,7 @@ __all__ = [
     "TclLyonClient",
     "TclLyonConnectionError",
     "TclLyonError",
+    "build_line_ref",
     "parse_departures",
     "parse_ref",
     "parse_situations",
@@ -99,6 +101,15 @@ class TclLyonClient:
         """
         await self._get_json(SIRI_SITUATION_EXCHANGE_URL)
 
+    async def async_download_gtfs_bytes(self) -> bytes:
+        """Return the GTFS zip body in memory (same Basic Auth).
+
+        The config flow only needs stops.txt + routes.txt out of it, so it parses
+        the bytes with :meth:`GtfsIndex.from_bytes` rather than touching disk.
+        """
+        async with self._request(GTFS_DOWNLOAD_URL, timeout=GTFS_TIMEOUT) as response:
+            return await response.read()
+
     async def async_download_gtfs(self, dest: str | Path) -> Path:
         """Download the GTFS zip to ``dest`` (same Basic Auth). Returns the path.
 
@@ -106,9 +117,7 @@ class TclLyonClient:
         callers inside HA should run this via ``hass.async_add_executor_job``.
         """
         destination = Path(dest)
-        async with self._request(GTFS_DOWNLOAD_URL, timeout=GTFS_TIMEOUT) as response:
-            data = await response.read()
-        destination.write_bytes(data)
+        destination.write_bytes(await self.async_download_gtfs_bytes())
         return destination
 
     async def _get_json(self, url: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:

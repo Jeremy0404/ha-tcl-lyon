@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from custom_components.tcl_lyon.siri import (
+    build_line_ref,
     parse_departures,
     parse_ref,
     parse_situations,
@@ -16,6 +17,23 @@ from custom_components.tcl_lyon.siri import (
 from .conftest import load_fixture
 
 UTC = UTC
+
+
+@pytest.mark.parametrize(
+    ("route_id", "expected"),
+    [
+        ("T2", "ActIV:Line::T2:SYTRAL"),
+        ("C3", "ActIV:Line::C3:SYTRAL"),
+        ("27", "ActIV:Line::27:SYTRAL"),
+    ],
+)
+def test_build_line_ref(route_id, expected):
+    assert build_line_ref(route_id) == expected
+
+
+@pytest.mark.parametrize("route_id", ["T2", "C3", "27", "M-A"])
+def test_build_line_ref_round_trips_through_parse_ref(route_id):
+    assert parse_ref(build_line_ref(route_id)) == route_id
 
 
 @pytest.mark.parametrize(

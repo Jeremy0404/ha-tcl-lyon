@@ -8,15 +8,53 @@
           "username": "Email (GrandLyon Connect)",
           "password": "Data password"
         }
+      },
+      "stop": {
+        "title": "Find a stop",
+        "description": "Type part of a stop name (e.g. \"Bellecour\").",
+        "data": {
+          "query": "Stop search"
+        }
+      },
+      "pick_stop": {
+        "title": "Choose a stop",
+        "data": {
+          "stop_id": "Stop"
+        }
+      },
+      "line": {
+        "title": "Find a line",
+        "description": "Which lines do you want to follow at {stop_name}? Type part of a line name or number (e.g. \"T2\", \"C3\", \"27\").",
+        "data": {
+          "query": "Line search"
+        }
+      },
+      "pick_line": {
+        "title": "Choose lines",
+        "description": "Lines to follow at {stop_name}.",
+        "data": {
+          "lines": "Lines",
+          "add_another": "Add another stop"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter your data password",
+        "description": "The data password for {username} was rejected. Enter it again — remember it is set via the [forgot-password flow]({forgot_password_url}) and is distinct from your SSO password.",
+        "data": {
+          "password": "Data password"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid credentials. Did you set your data password via the forgot-password flow? It's distinct from your SSO password.",
       "cannot_connect": "Unable to reach data.grandlyon.com.",
+      "no_results": "No match found. Try a different search.",
+      "no_lines": "Pick at least one line.",
       "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "This account is already configured."
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Re-authentication was successful."
     }
   }
 }

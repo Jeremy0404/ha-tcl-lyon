@@ -3,20 +3,58 @@
     "step": {
       "user": {
         "title": "TCL Lyon",
-        "description": "Connexion à data.grandlyon.com. Il vous faut un compte GrandLyon Connect ET un mot de passe data distinct, à définir via le flow \"mot de passe oublié\".",
+        "description": "Connexion à data.grandlyon.com. Il vous faut un compte GrandLyon Connect ET un mot de passe data distinct, à définir via le [flow « mot de passe oublié »]({forgot_password_url}).",
         "data": {
           "username": "Email (GrandLyon Connect)",
+          "password": "Mot de passe data"
+        }
+      },
+      "stop": {
+        "title": "Rechercher un arrêt",
+        "description": "Tapez une partie du nom d'un arrêt (ex. « Bellecour »).",
+        "data": {
+          "query": "Recherche d'arrêt"
+        }
+      },
+      "pick_stop": {
+        "title": "Choisir un arrêt",
+        "data": {
+          "stop_id": "Arrêt"
+        }
+      },
+      "line": {
+        "title": "Rechercher une ligne",
+        "description": "Quelles lignes voulez-vous suivre à {stop_name} ? Tapez une partie du nom ou du numéro (ex. « T2 », « C3 », « 27 »).",
+        "data": {
+          "query": "Recherche de ligne"
+        }
+      },
+      "pick_line": {
+        "title": "Choisir les lignes",
+        "description": "Lignes à suivre à {stop_name}.",
+        "data": {
+          "lines": "Lignes",
+          "add_another": "Ajouter un autre arrêt"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ressaisir votre mot de passe data",
+        "description": "Le mot de passe data pour {username} a été refusé. Saisissez-le à nouveau — rappel : il se définit via le [flow « mot de passe oublié »]({forgot_password_url}) et est distinct du mot de passe SSO.",
+        "data": {
           "password": "Mot de passe data"
         }
       }
     },
     "error": {
-      "invalid_auth": "Identifiants invalides. Avez-vous bien défini votre mot de passe data via le flow \"mot de passe oublié\" ? Il est distinct du mot de passe SSO.",
+      "invalid_auth": "Identifiants invalides. Avez-vous bien défini votre mot de passe data via le flow « mot de passe oublié » ? Il est distinct du mot de passe SSO.",
       "cannot_connect": "Impossible de joindre data.grandlyon.com.",
+      "no_results": "Aucun résultat. Essayez une autre recherche.",
+      "no_lines": "Sélectionnez au moins une ligne.",
       "unknown": "Erreur inattendue."
     },
     "abort": {
-      "already_configured": "Ce compte est déjà configuré."
+      "already_configured": "Ce compte est déjà configuré.",
+      "reauth_successful": "Ré-authentification réussie."
     }
   }
 }

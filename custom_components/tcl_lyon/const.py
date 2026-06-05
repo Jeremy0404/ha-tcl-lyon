@@ -28,17 +28,27 @@ GTFS_REFRESH_INTERVAL: Final = timedelta(days=7)
 # Most upcoming passages exposed in the sensor's attribute list.
 MAX_DEPARTURES: Final = 10
 
-# v0.3 hardcode — one stop/line to validate the end-to-end poll on the real HA
-# before the config flow exists. Replaced by the user's selection in v0.4.
-# T2 at stop 32166 is the POC's reference pair (see docs/03-poc-findings.md).
-V03_DEFAULT_LINE_REF: Final = "ActIV:Line::T2:SYTRAL"
-V03_DEFAULT_STOP_ID: Final = "32166"
+# Help link surfaced in the config flow for the data-password trap (see README).
+FORGOT_PASSWORD_URL: Final = "https://data.grandlyon.com/portail/fr/mot-de-passe-oublie"
 
+# Inverse of parse_ref for lines: route_id "T2" -> "ActIV:Line::T2:SYTRAL".
+SIRI_LINE_REF_TEMPLATE: Final = "ActIV:Line::{route_id}:SYTRAL"
+
+# Config-flow form fields.
+CONF_QUERY: Final = "query"
+CONF_ADD_ANOTHER: Final = "add_another"
+
+# Config-entry data model: data[CONF_STOPS] is a list of stop dicts, each with a
+# resolved quay-id set and a list of followed-line dicts — so setup never needs
+# the GTFS index again after the flow has run.
 CONF_STOPS: Final = "stops"
-CONF_LINES: Final = "lines"
 CONF_STOP_ID: Final = "stop_id"
+CONF_STOP_NAME: Final = "stop_name"
+CONF_QUAY_IDS: Final = "quay_ids"
+CONF_LINES: Final = "lines"
+CONF_LINE_REF: Final = "line_ref"
 CONF_LINE_ID: Final = "line_id"
-CONF_DIRECTION: Final = "direction"
+CONF_LINE_NAME: Final = "line_name"
 
 ATTR_NEXT_DEPARTURES: Final = "next_departures"
 ATTR_LINE_REF: Final = "line_ref"

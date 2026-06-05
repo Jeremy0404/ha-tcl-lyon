@@ -105,3 +105,21 @@ def test_missing_member_raises_gtfs_error(tmp_path):
         archive.writestr("routes.txt", ROUTES_CSV.encode("utf-8"))
     with pytest.raises(GtfsError):
         GtfsIndex.from_zip(incomplete)
+
+
+def test_from_bytes_matches_from_zip(tmp_path):
+    zip_path = tmp_path / "gtfs.zip"
+    _build_zip(zip_path, encoding="utf-8")
+    index = GtfsIndex.from_bytes(zip_path.read_bytes())
+    assert set(index.stops) == {"S5484", "32166", "48253", "S6000"}
+    assert set(index.routes) == {"T2", "C3"}
+
+
+def test_quay_ids_expands_station_to_children(gtfs_index):
+    # The user picks the parent S5484; SIRI only ever names the child quay 32166.
+    assert gtfs_index.quay_ids("S5484") == ["32166"]
+
+
+def test_quay_ids_falls_back_to_self_for_childless_stop(gtfs_index):
+    # 32166 is a quay with no children of its own → matches just itself.
+    assert gtfs_index.quay_ids("32166") == ["32166"]

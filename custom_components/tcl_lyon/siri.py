@@ -14,7 +14,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from .const import SIRI_NAMESPACE_SUFFIXES, UNRECORDED_TIME_SENTINEL
+from .const import SIRI_LINE_REF_TEMPLATE, SIRI_NAMESPACE_SUFFIXES, UNRECORDED_TIME_SENTINEL
 
 # Trailing namespace tokens (SYTRAL/LOC) stripped off SIRI refs to get the GTFS id.
 _NAMESPACE_TAILS = frozenset(suffix.lstrip(":") for suffix in SIRI_NAMESPACE_SUFFIXES)
@@ -42,6 +42,15 @@ def parse_ref(ref: str | None) -> str | None:
     if len(segments) >= 2 and segments[-1] in _NAMESPACE_TAILS:
         return segments[-2]
     return ref
+
+
+def build_line_ref(route_id: str) -> str:
+    """Inverse of :func:`parse_ref` for lines: ``T2`` -> ``ActIV:Line::T2:SYTRAL``.
+
+    The config flow stores this full SIRI ref because the server only honours the
+    namespaced form on ``?LineRef=`` (see docs/03-poc-findings.md).
+    """
+    return SIRI_LINE_REF_TEMPLATE.format(route_id=route_id)
 
 
 def parse_time(value: str | None) -> datetime | None:
