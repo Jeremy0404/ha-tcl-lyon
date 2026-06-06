@@ -6,6 +6,7 @@ One binary_sensor per distinct followed line (deduplicated across stops):
         is_on = True if any active situation affects this line's SIRI LineRef
         attributes:
           line_ref
+          line_color / line_text_color: GTFS line colours ('#'-prefixed) for cards
           disruption_count: number of active situations on the line
           summary: human-readable one-line-per-situation digest (the FR text TCL
                    publishes), for dashboards/notifications without templating
@@ -30,14 +31,16 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from . import TclLyonData, configured_stops
-from .api import Disruption
+from . import TclLyonData, configured_stops, line_meta
+from .api import Disruption, GtfsIndex
 from .const import (
     ATTR_DESCRIPTION,
     ATTR_DISRUPTION_COUNT,
     ATTR_DISRUPTIONS,
     ATTR_KEYWORDS,
+    ATTR_LINE_COLOR,
     ATTR_LINE_REF,
+    ATTR_LINE_TEXT_COLOR,
     ATTR_REPORT_TYPE,
     ATTR_SITUATION_NUMBER,
     ATTR_SUMMARY,
@@ -66,7 +69,7 @@ async def async_setup_entry(
             if line[CONF_LINE_REF] in seen:
                 continue
             seen.add(line[CONF_LINE_REF])
-            entities.append(TclLineDisruptionSensor(coordinator, line))
+            entities.append(TclLineDisruptionSensor(coordinator, line, data.index))
     async_add_entities(entities)
 
 
@@ -76,9 +79,16 @@ class TclLineDisruptionSensor(CoordinatorEntity[DisruptionsCoordinator], BinaryS
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_icon = "mdi:alert"
 
-    def __init__(self, coordinator: DisruptionsCoordinator, line: dict[str, object]) -> None:
+    def __init__(
+        self,
+        coordinator: DisruptionsCoordinator,
+        line: dict[str, object],
+        index: GtfsIndex | None = None,
+    ) -> None:
         super().__init__(coordinator)
         self._line_ref = line[CONF_LINE_REF]
+        # Icon stays mdi:alert (a "problem"); only the line colours are reused here.
+        _, self._line_color, self._line_text_color = line_meta(line, index)
         entry_id = coordinator.config_entry.entry_id
         self._attr_unique_id = f"{entry_id}_line_{line[CONF_LINE_ID]}_disrupted"
         self._attr_name = f"{line[CONF_LINE_NAME]} disruptions"
@@ -98,6 +108,8 @@ class TclLineDisruptionSensor(CoordinatorEntity[DisruptionsCoordinator], BinaryS
         disruptions = self._disruptions()
         return {
             ATTR_LINE_REF: self._line_ref,
+            ATTR_LINE_COLOR: self._line_color,
+            ATTR_LINE_TEXT_COLOR: self._line_text_color,
             ATTR_DISRUPTION_COUNT: len(disruptions),
             ATTR_SUMMARY: _summarize(disruptions),
             ATTR_DISRUPTIONS: [_serialize(d) for d in disruptions],
