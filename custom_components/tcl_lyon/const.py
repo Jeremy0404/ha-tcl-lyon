@@ -64,6 +64,7 @@ CONF_DIRECTION: Final = "direction"
 CONF_DIRECTION_NAME: Final = "direction_name"
 
 ATTR_NEXT_DEPARTURES: Final = "next_departures"
+ATTR_NEXT_DEPARTURE_TIME: Final = "next_departure_time"
 ATTR_LINE_REF: Final = "line_ref"
 ATTR_DIRECTION: Final = "direction"
 ATTR_DESTINATION: Final = "destination"
