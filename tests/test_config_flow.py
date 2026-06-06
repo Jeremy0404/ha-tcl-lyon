@@ -69,6 +69,24 @@ def _gtfs_bytes() -> bytes:
 
 GTFS_BYTES = _gtfs_bytes()
 
+# A full GTFS where T2 serves S5484 (via quay 32166) but C3 serves nothing there —
+# enough to exercise the serving-map filter on the line picker.
+_TRIPS_CSV = "route_id,service_id,trip_id\nT2,W,t1\n"
+_STOP_TIMES_CSV = (
+    "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nt1,08:00:00,08:00:00,32166,1\n"
+)
+
+
+def _full_gtfs_bytes() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("stops.txt", STOPS_CSV.encode("utf-8"))
+        archive.writestr("routes.txt", ROUTES_CSV.encode("utf-8"))
+        archive.writestr("trips.txt", _TRIPS_CSV.encode("utf-8"))
+        archive.writestr("stop_times.txt", _STOP_TIMES_CSV.encode("utf-8"))
+    return buffer.getvalue()
+
+
 # T2 target as the flow stores it once "outbound" is picked at S5484.
 T2_OUTBOUND = {
     CONF_LINE_REF: "ActIV:Line::T2:SYTRAL",
@@ -103,10 +121,14 @@ def _patch_client(monkeypatch, *, validate_exc=None, download_exc=None):
 @pytest.fixture(autouse=True)
 def _isolate_flow():
     """Keep these tests on the flow only: skip real entry setup and the aiohttp
-    session (the faked client ignores it, but creating one leaks a cleanup thread)."""
+    session (the faked client ignores it, but creating one leaks a cleanup thread).
+
+    Also force the shipped-index lookup to miss so the index comes from the faked
+    download — deterministic whether or not a real data/ file is committed."""
     with (
         patch("custom_components.tcl_lyon.async_setup_entry", return_value=True),
         patch("custom_components.tcl_lyon.config_flow.async_get_clientsession", return_value=None),
+        patch("custom_components.tcl_lyon.store._load_shipped", return_value=None),
     ):
         yield
 
@@ -157,6 +179,32 @@ async def test_full_flow_with_direction(hass, monkeypatch):
             CONF_LINES: [T2_OUTBOUND],
         }
     ]
+
+
+async def test_line_picker_filters_to_serving_lines(hass, monkeypatch):
+    from custom_components.tcl_lyon.gtfs import GtfsIndex
+
+    _patch_client(monkeypatch)
+    full = GtfsIndex.from_bytes_full(_full_gtfs_bytes())
+
+    async def _fake_get_index(hass, client):
+        return full
+
+    monkeypatch.setattr(config_flow, "async_get_index", _fake_get_index)
+
+    result = await _init_user(hass)
+    result = await _cfg(hass, result, {CONF_USERNAME: "me@example.com", CONF_PASSWORD: "pw"})
+    result = await _cfg(hass, result, {CONF_QUERY: "hotel"})
+    result = await _cfg(hass, result, {CONF_STOP_ID: "S5484"})
+
+    # C3 exists but doesn't serve S5484 → tailored error, stay on the line step.
+    result = await _cfg(hass, result, {CONF_QUERY: "c3"})
+    assert result["step_id"] == "line"
+    assert result["errors"] == {"base": "line_not_at_stop"}
+
+    # T2 does serve S5484 → advance to the picker, offering only T2.
+    result = await _cfg(hass, result, {CONF_QUERY: "t2"})
+    assert result["step_id"] == "pick_line"
 
 
 async def test_add_another_stop_loops_and_falls_back_to_all(hass, monkeypatch):

@@ -39,7 +39,6 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import (
-    GtfsError,
     GtfsIndex,
     Route,
     Stop,
@@ -68,6 +67,7 @@ from .const import (
     DOMAIN,
     FORGOT_PASSWORD_URL,
 )
+from .store import async_get_index
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,14 +138,25 @@ class _TargetSelectionFlow:
         )
 
     async def async_step_line(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Search lines by name (can't be pre-filtered to the stop — see CLAUDE.md)."""
+        """Search lines, restricted to those that serve the chosen stop.
+
+        The serving map comes from the cached/shipped GTFS index; when it has no
+        entry for the stop (cheap fallback build, or a data gap) the filter is
+        dropped and every match is shown rather than dead-ending the user.
+        """
         assert self._index is not None
         errors: dict[str, str] = {}
         if user_input is not None:
-            self._line_matches = self._index.search_routes(user_input[CONF_QUERY])
+            serving = self._index.routes_serving(self._current_stop[CONF_STOP_ID]) or None
+            query = user_input[CONF_QUERY]
+            self._line_matches = self._index.search_routes(query, serving=serving)
             if self._line_matches:
                 return await self.async_step_pick_line()
-            errors["base"] = "no_results"
+            # Distinguish "no such line" from "exists, but not at this stop".
+            if serving is not None and self._index.search_routes(query):
+                errors["base"] = "line_not_at_stop"
+            else:
+                errors["base"] = "no_results"
         return self.async_show_form(
             step_id="line",
             data_schema=vol.Schema({vol.Required(CONF_QUERY): str}),
@@ -225,16 +236,13 @@ class _TargetSelectionFlow:
         return {}
 
     async def _async_load_index(self, client: TclLyonClient) -> dict[str, str]:
-        """Download and parse the GTFS index off the event loop."""
+        """Load the GTFS search index: cached → shipped → cheap download."""
         try:
-            data = await client.async_download_gtfs_bytes()
-            self._index = await self.hass.async_add_executor_job(GtfsIndex.from_bytes, data)
-        except (TclLyonError, GtfsError):
-            return {"base": "cannot_connect"}
+            self._index = await async_get_index(self.hass, client)
         except Exception:
             _LOGGER.exception("Unexpected error loading the GTFS index")
             return {"base": "unknown"}
-        return {}
+        return {} if self._index is not None else {"base": "cannot_connect"}
 
     async def _build_direction_choices(
         self, lines: list[dict[str, Any]]

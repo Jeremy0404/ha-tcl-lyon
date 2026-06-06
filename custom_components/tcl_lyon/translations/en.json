@@ -59,6 +59,7 @@
       "invalid_auth": "Invalid credentials. Did you set your data password via the forgot-password flow? It's distinct from your SSO password.",
       "cannot_connect": "Unable to reach data.grandlyon.com.",
       "no_results": "No match found. Try a different search.",
+      "line_not_at_stop": "That line doesn't stop at {stop_name}. Try another line.",
       "no_lines": "Pick at least one line.",
       "no_directions": "Pick at least one direction.",
       "unknown": "Unexpected error."
@@ -123,6 +124,7 @@
     },
     "error": {
       "no_results": "No match found. Try a different search.",
+      "line_not_at_stop": "That line doesn't stop at {stop_name}. Try another line.",
       "no_lines": "Pick at least one line.",
       "no_directions": "Pick at least one direction."
     },

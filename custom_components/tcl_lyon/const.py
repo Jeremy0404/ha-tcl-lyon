@@ -25,6 +25,13 @@ DEFAULT_DEPARTURES_INTERVAL: Final = timedelta(seconds=45)
 DEFAULT_DISRUPTIONS_INTERVAL: Final = timedelta(minutes=5)
 GTFS_REFRESH_INTERVAL: Final = timedelta(days=7)
 
+# Cached GTFS search index (stop/route data + the stop→lines serving map).
+# Shipped prebuilt in data/, then refreshed from the live feed into HA storage.
+GTFS_INDEX_STORAGE_VERSION: Final = 1
+GTFS_INDEX_STORAGE_KEY: Final = f"{DOMAIN}_gtfs_index"
+# Bump when to_dict/from_dict change shape so stale caches are discarded.
+GTFS_INDEX_SCHEMA_VERSION: Final = 1
+
 # Most upcoming passages exposed in the sensor's attribute list.
 MAX_DEPARTURES: Final = 10
 

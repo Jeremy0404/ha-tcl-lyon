@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 
 from .api import TclLyonClient
 from .const import (
@@ -18,11 +21,16 @@ from .const import (
     CONF_QUAY_IDS,
     CONF_STOPS,
     DOMAIN,
+    GTFS_REFRESH_INTERVAL,
     PLATFORMS,
 )
 from .coordinator import DeparturesCoordinator, DisruptionsCoordinator
+from .store import async_load_available_index, async_refresh_index, index_is_stale
 
 _LOGGER = logging.getLogger(__name__)
+
+# Guards the weekly GTFS index refresh so multiple entries don't all download at once.
+INDEX_REFRESH_LOCK = f"{DOMAIN}_index_refresh_lock"
 
 
 @dataclass
@@ -77,8 +85,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = TclLyonData(departures, disruptions)
 
+    _async_setup_index_refresh(hass, entry, client)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def _async_setup_index_refresh(
+    hass: HomeAssistant, entry: ConfigEntry, client: TclLyonClient
+) -> None:
+    """Keep the cached GTFS stop→lines index fresh in the background.
+
+    The index only feeds the config/options pickers, so refreshing it never blocks
+    setup or entities: a stale or missing cache triggers one catch-up refresh now,
+    then a weekly timer takes over. The shared lock + freshness recheck mean a
+    second entry won't re-download what another just fetched.
+    """
+
+    async def _refresh(_now: datetime | None = None) -> None:
+        lock = hass.data.setdefault(INDEX_REFRESH_LOCK, asyncio.Lock())
+        async with lock:
+            # Weigh the shipped file's age too: a fresh prebuilt index needs no refresh.
+            if not index_is_stale(await async_load_available_index(hass)):
+                return
+            await async_refresh_index(hass, client)
+
+    entry.async_create_background_task(hass, _refresh(), "tcl_lyon_gtfs_index_refresh")
+    entry.async_on_unload(async_track_time_interval(hass, _refresh, GTFS_REFRESH_INTERVAL))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
