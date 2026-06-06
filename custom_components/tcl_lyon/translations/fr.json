@@ -59,6 +59,7 @@
       "invalid_auth": "Identifiants invalides. Avez-vous bien défini votre mot de passe data via le flow « mot de passe oublié » ? Il est distinct du mot de passe SSO.",
       "cannot_connect": "Impossible de joindre data.grandlyon.com.",
       "no_results": "Aucun résultat. Essayez une autre recherche.",
+      "line_not_at_stop": "Cette ligne ne dessert pas {stop_name}. Essayez une autre ligne.",
       "no_lines": "Sélectionnez au moins une ligne.",
       "no_directions": "Sélectionnez au moins une direction.",
       "unknown": "Erreur inattendue."
@@ -123,6 +124,7 @@
     },
     "error": {
       "no_results": "Aucun résultat. Essayez une autre recherche.",
+      "line_not_at_stop": "Cette ligne ne dessert pas {stop_name}. Essayez une autre ligne.",
       "no_lines": "Sélectionnez au moins une ligne.",
       "no_directions": "Sélectionnez au moins une direction."
     },
