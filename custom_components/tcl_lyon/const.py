@@ -62,10 +62,29 @@ CONF_LINE_NAME: Final = "line_name"
 # direction = SIRI DirectionRef ("inbound"/"outbound"), or None for "all directions".
 CONF_DIRECTION: Final = "direction"
 CONF_DIRECTION_NAME: Final = "direction_name"
+# Line presentation, resolved from the GTFS Route at pick_line (older entries lack
+# these and are backfilled from the index at setup; see line_meta in __init__).
+CONF_ROUTE_TYPE: Final = "route_type"
+CONF_LINE_COLOR: Final = "line_color"
+CONF_LINE_TEXT_COLOR: Final = "line_text_color"
+
+# GTFS route_type → MDI icon for the departure sensor. Covers the extended types the
+# TCL network uses (11 trolley/chrono, 7 funiculaire, 713 scolaire/TàD).
+DEFAULT_LINE_ICON: Final = "mdi:bus"
+ROUTE_TYPE_ICONS: Final = {
+    0: "mdi:tram",
+    1: "mdi:subway-variant",
+    3: "mdi:bus",
+    7: "mdi:cable-car",
+    11: "mdi:bus-electric",
+    713: "mdi:bus",
+}
 
 ATTR_NEXT_DEPARTURES: Final = "next_departures"
 ATTR_NEXT_DEPARTURE_TIME: Final = "next_departure_time"
 ATTR_LINE_REF: Final = "line_ref"
+ATTR_LINE_COLOR: Final = "line_color"
+ATTR_LINE_TEXT_COLOR: Final = "line_text_color"
 ATTR_DIRECTION: Final = "direction"
 ATTR_DESTINATION: Final = "destination"
 ATTR_AIMED_TIME: Final = "aimed_time"

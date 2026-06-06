@@ -54,13 +54,16 @@ from .const import (
     CONF_DIRECTION,
     CONF_DIRECTION_NAME,
     CONF_DIRECTIONS,
+    CONF_LINE_COLOR,
     CONF_LINE_ID,
     CONF_LINE_NAME,
     CONF_LINE_REF,
+    CONF_LINE_TEXT_COLOR,
     CONF_LINES,
     CONF_QUAY_IDS,
     CONF_QUERY,
     CONF_REMOVE,
+    CONF_ROUTE_TYPE,
     CONF_STOP_ID,
     CONF_STOP_NAME,
     CONF_STOPS,
@@ -177,6 +180,9 @@ class _TargetSelectionFlow:
                         CONF_LINE_REF: build_line_ref(route_id),
                         CONF_LINE_ID: route_id,
                         CONF_LINE_NAME: by_id[route_id].short_name or route_id,
+                        CONF_ROUTE_TYPE: by_id[route_id].route_type,
+                        CONF_LINE_COLOR: by_id[route_id].color,
+                        CONF_LINE_TEXT_COLOR: by_id[route_id].text_color,
                     }
                     for route_id in user_input[CONF_LINES]
                 ]
