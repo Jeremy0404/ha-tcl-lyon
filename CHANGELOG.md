@@ -7,6 +7,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-06
+
+### Changed
+- Enabled the HACS brands validation in CI: the integration's bundled brand icons (`custom_components/tcl_lyon/brand/`) satisfy it directly, so no `home-assistant/brands` entry is needed. This release marks readiness for the HACS default store.
+
 ## [0.6.1] - 2026-06-06
 
 ### Added
