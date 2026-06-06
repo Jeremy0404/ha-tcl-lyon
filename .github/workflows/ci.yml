@@ -51,5 +51,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Skip the brands check until the integration is added to home-assistant/brands.
-          ignore: brands
