@@ -14,15 +14,21 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .api import TclLyonClient
+from .api import GtfsIndex, TclLyonClient
 from .const import (
+    CONF_LINE_COLOR,
+    CONF_LINE_ID,
     CONF_LINE_REF,
+    CONF_LINE_TEXT_COLOR,
     CONF_LINES,
     CONF_QUAY_IDS,
+    CONF_ROUTE_TYPE,
     CONF_STOPS,
+    DEFAULT_LINE_ICON,
     DOMAIN,
     GTFS_REFRESH_INTERVAL,
     PLATFORMS,
+    ROUTE_TYPE_ICONS,
 )
 from .coordinator import DeparturesCoordinator, DisruptionsCoordinator
 from .store import async_load_available_index, async_refresh_index, index_is_stale
@@ -35,10 +41,15 @@ INDEX_REFRESH_LOCK = f"{DOMAIN}_index_refresh_lock"
 
 @dataclass
 class TclLyonData:
-    """The two coordinators backing an entry's entities, stored in hass.data."""
+    """The two coordinators backing an entry's entities, stored in hass.data.
+
+    ``index`` is loaded only to backfill line icon/colour for entries configured
+    before those fields were stored; it stays None when every target already has them.
+    """
 
     departures: DeparturesCoordinator
     disruptions: DisruptionsCoordinator
+    index: GtfsIndex | None = None
 
 
 def configured_stops(entry: ConfigEntry) -> list[dict[str, Any]]:
@@ -51,6 +62,30 @@ def configured_stops(entry: ConfigEntry) -> list[dict[str, Any]]:
     if CONF_STOPS in entry.options:
         return entry.options[CONF_STOPS]
     return entry.data.get(CONF_STOPS, [])
+
+
+def line_meta(
+    target: dict[str, Any], index: GtfsIndex | None
+) -> tuple[str, str | None, str | None]:
+    """(icon, line_color, text_color) for a line target — hex colours '#'-prefixed.
+
+    Prefers the values stored on the target at pick_line; falls back to the GTFS
+    index for older entries that predate them, then to a neutral default.
+    """
+    route_type = target.get(CONF_ROUTE_TYPE)
+    color = target.get(CONF_LINE_COLOR)
+    text_color = target.get(CONF_LINE_TEXT_COLOR)
+    if route_type is None and index is not None:
+        route = index.routes.get(target[CONF_LINE_ID])
+        if route is not None:
+            route_type, color, text_color = route.route_type, route.color, route.text_color
+    icon = ROUTE_TYPE_ICONS.get(route_type, DEFAULT_LINE_ICON)
+    return icon, _hex(color), _hex(text_color)
+
+
+def _hex(color: str | None) -> str | None:
+    """GTFS route colours are bare hex ('E2231A'); prefix '#' for dashboards."""
+    return f"#{color}" if color else None
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -83,7 +118,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     disruptions = DisruptionsCoordinator(hass, entry, client, line_refs=line_refs)
     await disruptions.async_refresh()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = TclLyonData(departures, disruptions)
+    # Only entries predating the stored icon/colour fields need the index to backfill.
+    index = None
+    if any(CONF_ROUTE_TYPE not in line for stop in stops for line in stop[CONF_LINES]):
+        index = await async_load_available_index(hass)
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = TclLyonData(departures, disruptions, index)
 
     _async_setup_index_refresh(hass, entry, client)
 

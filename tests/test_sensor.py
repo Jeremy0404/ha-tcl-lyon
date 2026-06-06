@@ -16,14 +16,17 @@ pytest.importorskip("homeassistant.runner")
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.tcl_lyon.api import Departure
+from custom_components.tcl_lyon.api import Departure, GtfsIndex, Route
 from custom_components.tcl_lyon.const import (
     CONF_DIRECTION,
     CONF_DIRECTION_NAME,
+    CONF_LINE_COLOR,
     CONF_LINE_ID,
     CONF_LINE_NAME,
     CONF_LINE_REF,
+    CONF_LINE_TEXT_COLOR,
     CONF_QUAY_IDS,
+    CONF_ROUTE_TYPE,
     CONF_STOP_ID,
     CONF_STOP_NAME,
     DOMAIN,
@@ -66,14 +69,14 @@ def _departure(
     )
 
 
-def _make_sensor(hass, departures, target=TARGET):
+def _make_sensor(hass, departures, target=TARGET, index=None):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
     coordinator = DeparturesCoordinator(
         hass, entry, client=None, line_refs=(LINE_REF,), stop_ids=(QUAY,)
     )
     coordinator.data = {LINE_REF: departures}
-    return TclDepartureSensor(coordinator, STOP, target)
+    return TclDepartureSensor(coordinator, STOP, target, index)
 
 
 async def test_next_departure_time_matches_state_passage(hass, freezer):
@@ -122,3 +125,60 @@ async def test_next_departure_time_respects_direction(hass, freezer):
         sensor.extra_state_attributes["next_departure_time"]
         == (NOW + timedelta(minutes=8)).isoformat()
     )
+
+
+def _route(route_type, color="2EB6AC", text_color="FFFFFF"):
+    return Route(
+        route_id="T2",
+        short_name="T2",
+        long_name="",
+        route_type=route_type,
+        color=color,
+        text_color=text_color,
+    )
+
+
+async def test_icon_and_color_from_target_fields(hass):
+    target = {
+        **TARGET,
+        CONF_ROUTE_TYPE: 0,  # tram
+        CONF_LINE_COLOR: "2EB6AC",
+        CONF_LINE_TEXT_COLOR: "FFFFFF",
+    }
+    sensor = _make_sensor(hass, [], target=target)
+
+    assert sensor.icon == "mdi:tram"
+    attrs = sensor.extra_state_attributes
+    assert attrs["line_color"] == "#2EB6AC"
+    assert attrs["line_text_color"] == "#FFFFFF"
+
+
+async def test_icon_per_route_type(hass):
+    cases = {0: "mdi:tram", 1: "mdi:subway-variant", 7: "mdi:cable-car", 11: "mdi:bus-electric"}
+    for route_type, icon in cases.items():
+        sensor = _make_sensor(hass, [], target={**TARGET, CONF_ROUTE_TYPE: route_type})
+        assert sensor.icon == icon
+
+
+async def test_icon_defaults_when_route_type_unknown(hass):
+    sensor = _make_sensor(hass, [], target={**TARGET, CONF_ROUTE_TYPE: 999})
+
+    assert sensor.icon == "mdi:bus"
+
+
+async def test_backfill_icon_and_color_from_index(hass):
+    # An "old" target (no colour fields) is filled in from the GTFS index.
+    index = GtfsIndex(stops={}, routes={"T2": _route(0)})
+    sensor = _make_sensor(hass, [], target=TARGET, index=index)
+
+    assert sensor.icon == "mdi:tram"
+    assert sensor.extra_state_attributes["line_color"] == "#2EB6AC"
+
+
+async def test_neutral_default_without_fields_or_index(hass):
+    sensor = _make_sensor(hass, [], target=TARGET)
+
+    assert sensor.icon == "mdi:bus"
+    attrs = sensor.extra_state_attributes
+    assert attrs["line_color"] is None
+    assert attrs["line_text_color"] is None
