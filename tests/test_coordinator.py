@@ -16,7 +16,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tcl_lyon.api import TclLyonAuthError, TclLyonConnectionError
-from custom_components.tcl_lyon.const import DOMAIN
+from custom_components.tcl_lyon.const import AUTH_FAILURE_THRESHOLD, DOMAIN
 from custom_components.tcl_lyon.coordinator import (
     DeparturesCoordinator,
     DisruptionsCoordinator,
@@ -91,11 +91,33 @@ async def test_connection_error_becomes_update_failed(hass):
         await coordinator._async_update_data()
 
 
-async def test_auth_error_becomes_config_entry_auth_failed(hass):
+async def test_auth_error_forces_reauth_only_after_threshold(hass):
     client = FakeClient(error=TclLyonAuthError("401"))
     coordinator = _make_coordinator(hass, client)
 
+    # Below the threshold a 401 degrades like any outage — no reauth prompt yet.
+    for _ in range(AUTH_FAILURE_THRESHOLD - 1):
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+    # The next consecutive auth-failed poll escalates to reauth.
     with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+async def test_successful_poll_resets_auth_failure_count(hass):
+    client = FakeClient(payload=load_fixture("estimated_timetables.json"))
+    coordinator = _make_coordinator(hass, client)
+
+    # Auth blips up to one shy of the threshold, then a good poll clears the count,
+    # so a later blip starts over and never trips reauth.
+    for _ in range(AUTH_FAILURE_THRESHOLD - 1):
+        client._error = TclLyonAuthError("401")
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+    client._error = None
+    await coordinator._async_update_data()
+    client._error = TclLyonAuthError("401")
+    with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
 
 
@@ -124,9 +146,12 @@ async def test_disruptions_connection_error_becomes_update_failed(hass):
         await coordinator._async_update_data()
 
 
-async def test_disruptions_auth_error_becomes_config_entry_auth_failed(hass):
+async def test_disruptions_auth_error_forces_reauth_only_after_threshold(hass):
     client = FakeClient(error=TclLyonAuthError("401"))
     coordinator = _make_disruptions_coordinator(hass, client)
 
+    for _ in range(AUTH_FAILURE_THRESHOLD - 1):
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
     with pytest.raises(ConfigEntryAuthFailed):
         await coordinator._async_update_data()

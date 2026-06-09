@@ -215,12 +215,34 @@ async def test_gives_up_after_max_attempts_with_growing_backoff(no_sleep):
     assert no_sleep == [1.0, 2.0]
 
 
-async def test_auth_error_is_not_retried(no_sleep):
-    session = SequenceSession([FakeResponse(status=401), FakeResponse(json_data={})])
+async def test_data_fetch_retries_auth_error_then_succeeds(no_sleep):
+    # A 401 mid-poll is a likely server blip on this stateless feed: ride it out.
+    payload = {"ok": True}
+    session = SequenceSession([FakeResponse(status=401), FakeResponse(json_data=payload)])
+    client = make_client(session)
+
+    assert await client.async_fetch_situation_exchange() == payload
+    assert session.calls == 2
+    assert no_sleep == [1.0]
+
+
+async def test_data_fetch_gives_up_on_persistent_auth_error(no_sleep):
+    session = SequenceSession([FakeResponse(status=401)] * REQUEST_MAX_ATTEMPTS)
     client = make_client(session)
 
     with pytest.raises(TclLyonAuthError):
         await client.async_fetch_situation_exchange()
+
+    assert session.calls == REQUEST_MAX_ATTEMPTS
+
+
+async def test_validate_credentials_does_not_retry_auth_error(no_sleep):
+    # Setup-time validation fails fast so a wrong password is reported promptly.
+    session = SequenceSession([FakeResponse(status=401), FakeResponse(json_data={})])
+    client = make_client(session)
+
+    with pytest.raises(TclLyonAuthError):
+        await client.async_validate_credentials()
 
     assert session.calls == 1  # failed fast, no retry, no second outcome consumed
     assert no_sleep == []
