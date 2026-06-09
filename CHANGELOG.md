@@ -7,6 +7,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Stop prompting to re-enter credentials on transient `401`s from the SIRI feed. Basic Auth is stateless, so a lone 401 amid working polls is almost always a server blip, not a credential change. Data polls now retry a 401 like any other transient error, and the coordinators only trigger the reauth flow after several consecutive auth-failed polls — a genuinely wrong password still trips it within a couple of cycles.
+
 ## [0.7.0] - 2026-06-06
 
 ### Changed

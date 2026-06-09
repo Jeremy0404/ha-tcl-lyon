@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from typing import NoReturn
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -32,12 +33,42 @@ from .api import (
     parse_departures,
     parse_situations,
 )
-from .const import DEFAULT_DEPARTURES_INTERVAL, DEFAULT_DISRUPTIONS_INTERVAL, DOMAIN
+from .const import (
+    AUTH_FAILURE_THRESHOLD,
+    DEFAULT_DEPARTURES_INTERVAL,
+    DEFAULT_DISRUPTIONS_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class DeparturesCoordinator(DataUpdateCoordinator[dict[str, list[Departure]]]):
+class _AuthFailureTracker:
+    """Tolerate transient 401s from the flaky SIRI feed before forcing reauth.
+
+    A stateless Basic-Auth 401 mid-poll is almost always a server blip, not a real
+    credential change, so we escalate to ``ConfigEntryAuthFailed`` (which prompts
+    the user to re-enter their password) only after several *consecutive* polls
+    fail auth. Isolated blips just fail the poll like any other outage; a genuinely
+    wrong password 401s every poll and still trips the threshold within minutes.
+    """
+
+    _auth_failures: int = 0
+
+    def _on_auth_failure(self, err: TclLyonAuthError) -> NoReturn:
+        self._auth_failures += 1
+        if self._auth_failures >= AUTH_FAILURE_THRESHOLD:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        raise UpdateFailed(
+            f"auth failed ({self._auth_failures}/{AUTH_FAILURE_THRESHOLD}); "
+            "treating as a transient blip"
+        ) from err
+
+    def _on_auth_success(self) -> None:
+        self._auth_failures = 0
+
+
+class DeparturesCoordinator(_AuthFailureTracker, DataUpdateCoordinator[dict[str, list[Departure]]]):
     """Poll estimated-timetables for the followed lines, keyed by SIRI LineRef.
 
     Each value is the soonest-first list of departures at the configured stops for
@@ -71,14 +102,17 @@ class DeparturesCoordinator(DataUpdateCoordinator[dict[str, list[Departure]]]):
             try:
                 payload = await self._client.async_fetch_estimated_timetables(line_ref)
             except TclLyonAuthError as err:
-                raise ConfigEntryAuthFailed(str(err)) from err
+                self._on_auth_failure(err)
             except TclLyonConnectionError as err:
                 raise UpdateFailed(str(err)) from err
             result[line_ref] = parse_departures(payload, stop_ids=self._stop_ids)
+        self._on_auth_success()
         return result
 
 
-class DisruptionsCoordinator(DataUpdateCoordinator[dict[str, list[Disruption]]]):
+class DisruptionsCoordinator(
+    _AuthFailureTracker, DataUpdateCoordinator[dict[str, list[Disruption]]]
+):
     """Poll situation-exchange in bulk, keyed by followed SIRI LineRef.
 
     One request every ~5 min (the feed is small and not server-filterable). The
@@ -108,9 +142,10 @@ class DisruptionsCoordinator(DataUpdateCoordinator[dict[str, list[Disruption]]])
         try:
             payload = await self._client.async_fetch_situation_exchange()
         except TclLyonAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            self._on_auth_failure(err)
         except TclLyonConnectionError as err:
             raise UpdateFailed(str(err)) from err
+        self._on_auth_success()
         result: dict[str, list[Disruption]] = {ref: [] for ref in self._line_refs}
         for disruption in parse_situations(payload, line_refs=self._line_refs):
             for ref in disruption.affected_line_refs:
