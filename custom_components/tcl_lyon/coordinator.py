@@ -16,6 +16,7 @@ See docs/03-poc-findings.md.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Iterable
 from typing import NoReturn
 
@@ -34,7 +35,8 @@ from .api import (
     parse_situations,
 )
 from .const import (
-    AUTH_FAILURE_THRESHOLD,
+    AUTH_FAILURE_GRACE_PERIOD,
+    AUTH_FAILURE_STREAK_TIMEOUT,
     DEFAULT_DEPARTURES_INTERVAL,
     DEFAULT_DISRUPTIONS_INTERVAL,
     DOMAIN,
@@ -42,33 +44,56 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+_GRACE_PERIOD = AUTH_FAILURE_GRACE_PERIOD.total_seconds()
+_STREAK_TIMEOUT = AUTH_FAILURE_STREAK_TIMEOUT.total_seconds()
 
-class _AuthFailureTracker:
+
+class AuthFailureTracker:
     """Tolerate transient 401s from the flaky SIRI feed before forcing reauth.
 
     A stateless Basic-Auth 401 mid-poll is almost always a server blip, not a real
     credential change, so we escalate to ``ConfigEntryAuthFailed`` (which prompts
-    the user to re-enter their password) only after several *consecutive* polls
-    fail auth. Isolated blips just fail the poll like any other outage; a genuinely
-    wrong password 401s every poll and still trips the threshold within minutes.
+    the user to re-enter their password) only once auth has been failing for
+    ``AUTH_FAILURE_GRACE_PERIOD`` with no successful poll in between. Counting
+    failures instead would eventually prompt on a healthy entry: on a feed with
+    this much downtime, isolated blips days apart still add up to any threshold.
+
+    One instance is shared by both coordinators of an entry, since they share the
+    one credential — a success on either clears the other's suspicion. It is
+    rebuilt on reload, which only ever delays escalation, never causes it.
+
+    Elapsed time comes from ``time.monotonic`` so an NTP correction on the host
+    can't fast-forward a streak into a spurious prompt.
     """
 
-    _auth_failures: int = 0
+    def __init__(self) -> None:
+        self._failing_since: float | None = None
+        self._last_failure: float | None = None
 
-    def _on_auth_failure(self, err: TclLyonAuthError) -> NoReturn:
-        self._auth_failures += 1
-        if self._auth_failures >= AUTH_FAILURE_THRESHOLD:
+    def on_auth_failure(self, err: TclLyonAuthError) -> NoReturn:
+        """Record a 401 and either ride it out or escalate to reauth."""
+        now = time.monotonic()
+        # A gap this long means the feed, not the credential, was the problem in
+        # between — treat this 401 as the start of a fresh streak.
+        if self._last_failure is None or now - self._last_failure > _STREAK_TIMEOUT:
+            self._failing_since = now
+        self._last_failure = now
+
+        failing_for = now - self._failing_since
+        if failing_for >= _GRACE_PERIOD:
             raise ConfigEntryAuthFailed(str(err)) from err
         raise UpdateFailed(
-            f"auth failed ({self._auth_failures}/{AUTH_FAILURE_THRESHOLD}); "
-            "treating as a transient blip"
+            f"auth failed for {failing_for:.0f}s of the "
+            f"{_GRACE_PERIOD:.0f}s grace period; treating as a transient blip"
         ) from err
 
-    def _on_auth_success(self) -> None:
-        self._auth_failures = 0
+    def on_success(self) -> None:
+        """A poll got through, so the credential is fine — drop any streak."""
+        self._failing_since = None
+        self._last_failure = None
 
 
-class DeparturesCoordinator(_AuthFailureTracker, DataUpdateCoordinator[dict[str, list[Departure]]]):
+class DeparturesCoordinator(DataUpdateCoordinator[dict[str, list[Departure]]]):
     """Poll estimated-timetables for the followed lines, keyed by SIRI LineRef.
 
     Each value is the soonest-first list of departures at the configured stops for
@@ -84,6 +109,7 @@ class DeparturesCoordinator(_AuthFailureTracker, DataUpdateCoordinator[dict[str,
         client: TclLyonClient,
         line_refs: Iterable[str],
         stop_ids: Iterable[str],
+        auth_tracker: AuthFailureTracker,
     ) -> None:
         super().__init__(
             hass,
@@ -93,6 +119,7 @@ class DeparturesCoordinator(_AuthFailureTracker, DataUpdateCoordinator[dict[str,
             update_interval=DEFAULT_DEPARTURES_INTERVAL,
         )
         self._client = client
+        self._auth = auth_tracker
         self._line_refs = tuple(line_refs)
         self._stop_ids = frozenset(stop_ids)
 
@@ -102,17 +129,15 @@ class DeparturesCoordinator(_AuthFailureTracker, DataUpdateCoordinator[dict[str,
             try:
                 payload = await self._client.async_fetch_estimated_timetables(line_ref)
             except TclLyonAuthError as err:
-                self._on_auth_failure(err)
+                self._auth.on_auth_failure(err)
             except TclLyonConnectionError as err:
                 raise UpdateFailed(str(err)) from err
             result[line_ref] = parse_departures(payload, stop_ids=self._stop_ids)
-        self._on_auth_success()
+        self._auth.on_success()
         return result
 
 
-class DisruptionsCoordinator(
-    _AuthFailureTracker, DataUpdateCoordinator[dict[str, list[Disruption]]]
-):
+class DisruptionsCoordinator(DataUpdateCoordinator[dict[str, list[Disruption]]]):
     """Poll situation-exchange in bulk, keyed by followed SIRI LineRef.
 
     One request every ~5 min (the feed is small and not server-filterable). The
@@ -127,6 +152,7 @@ class DisruptionsCoordinator(
         entry: ConfigEntry,
         client: TclLyonClient,
         line_refs: Iterable[str],
+        auth_tracker: AuthFailureTracker,
     ) -> None:
         super().__init__(
             hass,
@@ -136,16 +162,17 @@ class DisruptionsCoordinator(
             update_interval=DEFAULT_DISRUPTIONS_INTERVAL,
         )
         self._client = client
+        self._auth = auth_tracker
         self._line_refs = frozenset(line_refs)
 
     async def _async_update_data(self) -> dict[str, list[Disruption]]:
         try:
             payload = await self._client.async_fetch_situation_exchange()
         except TclLyonAuthError as err:
-            self._on_auth_failure(err)
+            self._auth.on_auth_failure(err)
         except TclLyonConnectionError as err:
             raise UpdateFailed(str(err)) from err
-        self._on_auth_success()
+        self._auth.on_success()
         result: dict[str, list[Disruption]] = {ref: [] for ref in self._line_refs}
         for disruption in parse_situations(payload, line_refs=self._line_refs):
             for ref in disruption.affected_line_refs:

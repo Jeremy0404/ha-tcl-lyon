@@ -24,13 +24,16 @@ from .const import (
     GTFS_REFRESH_INTERVAL,
     PLATFORMS,
 )
-from .coordinator import DeparturesCoordinator, DisruptionsCoordinator
+from .coordinator import AuthFailureTracker, DeparturesCoordinator, DisruptionsCoordinator
 from .store import async_load_available_index, async_refresh_index, index_is_stale
 
 _LOGGER = logging.getLogger(__name__)
 
 # Guards the weekly GTFS index refresh so multiple entries don't all download at once.
 INDEX_REFRESH_LOCK = f"{DOMAIN}_index_refresh_lock"
+# Auth-failure trackers, kept per entry outside the entry's own hass.data slot so
+# they outlive a failed setup — see _auth_tracker.
+AUTH_TRACKERS = f"{DOMAIN}_auth_trackers"
 
 
 @dataclass
@@ -69,18 +72,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     line_refs = {line[CONF_LINE_REF] for stop in stops for line in stop[CONF_LINES]}
     quay_ids = {quay for stop in stops for quay in stop[CONF_QUAY_IDS]}
 
+    auth_tracker = _auth_tracker(hass, entry)
+
     departures = DeparturesCoordinator(
         hass,
         entry,
         client,
         line_refs=line_refs,
         stop_ids=quay_ids,
+        auth_tracker=auth_tracker,
     )
     await departures.async_config_entry_first_refresh()
 
     # Disruptions are secondary; refresh best-effort so a situation-exchange outage
     # (the feed's ~58% uptime) doesn't block setup. Auth/readiness is gated above.
-    disruptions = DisruptionsCoordinator(hass, entry, client, line_refs=line_refs)
+    disruptions = DisruptionsCoordinator(
+        hass, entry, client, line_refs=line_refs, auth_tracker=auth_tracker
+    )
     await disruptions.async_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = TclLyonData(departures, disruptions)
@@ -114,11 +122,26 @@ def _async_setup_index_refresh(
     entry.async_on_unload(async_track_time_interval(hass, _refresh, GTFS_REFRESH_INTERVAL))
 
 
+def _auth_tracker(hass: HomeAssistant, entry: ConfigEntry) -> AuthFailureTracker:
+    """The entry's auth-failure tracker, shared by its two coordinators.
+
+    One tracker per entry, not per coordinator: both poll with the same credential,
+    so a success on either is evidence for both. It is kept across setup *retries*
+    (a ``ConfigEntryNotReady`` never unloads the entry) — a tracker rebuilt on every
+    retry could never reach the grace period, so a password that went wrong while
+    HA was down would retry forever instead of prompting. A real unload does drop
+    it, which is what reauth and the options flow want: the credential just changed.
+    """
+    trackers: dict[str, AuthFailureTracker] = hass.data.setdefault(AUTH_TRACKERS, {})
+    return trackers.setdefault(entry.entry_id, AuthFailureTracker())
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        hass.data.get(AUTH_TRACKERS, {}).pop(entry.entry_id, None)
     return unload_ok
 
 

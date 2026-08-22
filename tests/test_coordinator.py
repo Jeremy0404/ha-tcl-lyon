@@ -16,8 +16,13 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tcl_lyon.api import TclLyonAuthError, TclLyonConnectionError
-from custom_components.tcl_lyon.const import AUTH_FAILURE_THRESHOLD, DOMAIN
+from custom_components.tcl_lyon.const import (
+    AUTH_FAILURE_GRACE_PERIOD,
+    AUTH_FAILURE_STREAK_TIMEOUT,
+    DOMAIN,
+)
 from custom_components.tcl_lyon.coordinator import (
+    AuthFailureTracker,
     DeparturesCoordinator,
     DisruptionsCoordinator,
 )
@@ -49,16 +54,18 @@ class FakeClient:
         return self._payload
 
 
-def _make_coordinator(hass, client, *, line_refs=(LINE_REF,), stop_ids=("32166",)):
+def _make_coordinator(hass, client, *, line_refs=(LINE_REF,), stop_ids=("32166",), tracker=None):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
-    return DeparturesCoordinator(hass, entry, client, line_refs, stop_ids)
+    return DeparturesCoordinator(
+        hass, entry, client, line_refs, stop_ids, tracker or AuthFailureTracker()
+    )
 
 
-def _make_disruptions_coordinator(hass, client, *, line_refs=(LINE_REF,)):
+def _make_disruptions_coordinator(hass, client, *, line_refs=(LINE_REF,), tracker=None):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
-    return DisruptionsCoordinator(hass, entry, client, line_refs)
+    return DisruptionsCoordinator(hass, entry, client, line_refs, tracker or AuthFailureTracker())
 
 
 async def test_polls_each_line_and_filters_to_wanted_stop(hass):
@@ -91,34 +98,107 @@ async def test_connection_error_becomes_update_failed(hass):
         await coordinator._async_update_data()
 
 
-async def test_auth_error_forces_reauth_only_after_threshold(hass):
+async def test_auth_error_rides_out_the_grace_period(hass, freezer):
     client = FakeClient(error=TclLyonAuthError("401"))
     coordinator = _make_coordinator(hass, client)
 
-    # Below the threshold a 401 degrades like any outage — no reauth prompt yet.
-    for _ in range(AUTH_FAILURE_THRESHOLD - 1):
-        with pytest.raises(UpdateFailed):
-            await coordinator._async_update_data()
-    # The next consecutive auth-failed poll escalates to reauth.
+    # Inside the grace period a 401 degrades like any outage — no reauth prompt.
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD / 2)
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+    # Once auth has been failing for the whole grace period, escalate to reauth.
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD / 2)
     with pytest.raises(ConfigEntryAuthFailed):
         await coordinator._async_update_data()
 
 
-async def test_successful_poll_resets_auth_failure_count(hass):
+async def test_successful_poll_clears_the_streak(hass, freezer):
     client = FakeClient(payload=load_fixture("estimated_timetables.json"))
     coordinator = _make_coordinator(hass, client)
 
-    # Auth blips up to one shy of the threshold, then a good poll clears the count,
-    # so a later blip starts over and never trips reauth.
-    for _ in range(AUTH_FAILURE_THRESHOLD - 1):
-        client._error = TclLyonAuthError("401")
-        with pytest.raises(UpdateFailed):
-            await coordinator._async_update_data()
-    client._error = None
-    await coordinator._async_update_data()
     client._error = TclLyonAuthError("401")
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
+    client._error = None
+    await coordinator._async_update_data()
+
+    # The good poll reset the clock, so the old streak can't carry the new 401
+    # past the grace period.
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD)
+    client._error = TclLyonAuthError("401")
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+
+async def test_connection_errors_do_not_clear_the_streak(hass, freezer):
+    """A wrong password still escalates when the flaky feed interleaves outages."""
+    client = FakeClient(error=TclLyonAuthError("401"))
+    coordinator = _make_coordinator(hass, client)
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    # An outage proves nothing about the credential, so it neither clears the
+    # streak (only a successful poll does) nor counts towards it.
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD / 2)
+    client._error = TclLyonConnectionError("down")
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD / 2)
+    client._error = TclLyonAuthError("401")
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+async def test_long_outage_starts_a_new_streak(hass, freezer):
+    """Two 401s this far apart are unrelated blips, not one long auth failure."""
+    client = FakeClient(error=TclLyonAuthError("401"))
+    coordinator = _make_coordinator(hass, client)
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+    client._error = TclLyonConnectionError("down")
+    for _ in range(3):
+        freezer.tick(AUTH_FAILURE_STREAK_TIMEOUT / 2)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+
+    # Nothing succeeded in between, but the gap is too wide to treat as one
+    # streak — without this the entry would prompt for a password it never lost.
+    client._error = TclLyonAuthError("401")
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+
+async def test_tracker_is_shared_between_coordinators(hass, freezer):
+    """One credential, one streak: neither coordinator prompts on its own evidence."""
+    tracker = AuthFailureTracker()
+    departures_client = FakeClient(payload=load_fixture("estimated_timetables.json"))
+    departures = _make_coordinator(hass, departures_client, tracker=tracker)
+    disruptions = _make_disruptions_coordinator(
+        hass, FakeClient(error=TclLyonAuthError("401")), tracker=tracker
+    )
+
+    # Disruptions 401s across the whole grace period while departures polls fine,
+    # so the credential is demonstrably good and no reauth fires.
+    with pytest.raises(UpdateFailed):
+        await disruptions._async_update_data()
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD)
+    await departures._async_update_data()
+    with pytest.raises(UpdateFailed):
+        await disruptions._async_update_data()
+
+    # Once departures 401s too, the shared streak escalates for both.
+    departures_client._error = TclLyonAuthError("401")
+    with pytest.raises(UpdateFailed):
+        await departures._async_update_data()
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await disruptions._async_update_data()
 
 
 async def test_disruptions_polls_once_and_keys_per_line(hass):
@@ -146,12 +226,12 @@ async def test_disruptions_connection_error_becomes_update_failed(hass):
         await coordinator._async_update_data()
 
 
-async def test_disruptions_auth_error_forces_reauth_only_after_threshold(hass):
+async def test_disruptions_auth_error_rides_out_the_grace_period(hass, freezer):
     client = FakeClient(error=TclLyonAuthError("401"))
     coordinator = _make_disruptions_coordinator(hass, client)
 
-    for _ in range(AUTH_FAILURE_THRESHOLD - 1):
-        with pytest.raises(UpdateFailed):
-            await coordinator._async_update_data()
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+    freezer.tick(AUTH_FAILURE_GRACE_PERIOD)
     with pytest.raises(ConfigEntryAuthFailed):
         await coordinator._async_update_data()
