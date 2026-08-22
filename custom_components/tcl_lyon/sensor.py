@@ -7,10 +7,13 @@ One sensor per (stop, line) the user follows, built from the config entry:
                 "unavailable" when the poll fails — handled by CoordinatorEntity)
         attributes:
           line_ref
+          line_color / line_text_color: GTFS line colours ('#'-prefixed) for cards
           next_departure_time: absolute ISO time of the passage the state counts
                                down to (None when none is known)
           next_departures: upcoming passes with aimed/expected times, realtime
                            flag, cancellation flag and minutes-to-go
+
+The icon is chosen from the line's GTFS route_type (tram/métro/bus/…).
 
 State priority is realtime (Expected) over scheduled (Aimed), already resolved by
 Departure.time. See docs/02-data-sources.md for the contract.
@@ -29,8 +32,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from . import TclLyonData, configured_stops
-from .api import Departure
+from . import TclLyonData, configured_stops, line_meta
+from .api import Departure, GtfsIndex
 from .const import (
     ATTR_AIMED_TIME,
     ATTR_CANCELLED,
@@ -38,7 +41,9 @@ from .const import (
     ATTR_DIRECTION,
     ATTR_EXPECTED_TIME,
     ATTR_IS_REALTIME,
+    ATTR_LINE_COLOR,
     ATTR_LINE_REF,
+    ATTR_LINE_TEXT_COLOR,
     ATTR_MINUTES,
     ATTR_NEXT_DEPARTURE_TIME,
     ATTR_NEXT_DEPARTURES,
@@ -73,7 +78,7 @@ async def async_setup_entry(
             if key in seen:  # guard against a duplicate target → unique_id clash
                 continue
             seen.add(key)
-            entities.append(TclDepartureSensor(coordinator, stop, target))
+            entities.append(TclDepartureSensor(coordinator, stop, target, data.index))
     async_add_entities(entities)
 
 
@@ -81,16 +86,17 @@ class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity)
     """Minutes until the next passage of a line at a stop, in one direction."""
 
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
-    _attr_icon = "mdi:tram"
 
     def __init__(
         self,
         coordinator: DeparturesCoordinator,
         stop: dict[str, object],
         target: dict[str, object],
+        index: GtfsIndex | None = None,
     ) -> None:
         super().__init__(coordinator)
         self._line_ref = target[CONF_LINE_REF]
+        self._attr_icon, self._line_color, self._line_text_color = line_meta(target, index)
         # A station fans out to several SIRI quays; match any of them.
         self._quay_ids = frozenset(stop[CONF_QUAY_IDS])
         # None = follow every direction (the v0.4 behaviour, kept as an option).
@@ -122,6 +128,8 @@ class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity)
         nxt = self._next_departure(now)
         return {
             ATTR_LINE_REF: self._line_ref,
+            ATTR_LINE_COLOR: self._line_color,
+            ATTR_LINE_TEXT_COLOR: self._line_text_color,
             ATTR_NEXT_DEPARTURE_TIME: nxt.time.isoformat() if nxt and nxt.time else None,
             ATTR_NEXT_DEPARTURES: [
                 _serialize(departure, now) for departure in self._stop_departures()[:MAX_DEPARTURES]

@@ -16,12 +16,15 @@ pytest.importorskip("homeassistant.runner")
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.tcl_lyon.api import Disruption
+from custom_components.tcl_lyon.api import Disruption, GtfsIndex, Route
 from custom_components.tcl_lyon.binary_sensor import TclLineDisruptionSensor
 from custom_components.tcl_lyon.const import (
+    CONF_LINE_COLOR,
     CONF_LINE_ID,
     CONF_LINE_NAME,
     CONF_LINE_REF,
+    CONF_LINE_TEXT_COLOR,
+    CONF_ROUTE_TYPE,
     DOMAIN,
 )
 from custom_components.tcl_lyon.coordinator import DisruptionsCoordinator
@@ -41,12 +44,12 @@ DISRUPTION = Disruption(
 )
 
 
-def _make_sensor(hass, data):
+def _make_sensor(hass, data, line=LINE, index=None):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
     coordinator = DisruptionsCoordinator(hass, entry, client=None, line_refs=(LINE_REF,))
     coordinator.data = data
-    return TclLineDisruptionSensor(coordinator, LINE)
+    return TclLineDisruptionSensor(coordinator, line, index)
 
 
 async def test_on_when_line_has_active_disruption(hass):
@@ -106,3 +109,21 @@ async def test_unique_id_is_per_line(hass):
     sensor = _make_sensor(hass, {LINE_REF: []})
 
     assert sensor.unique_id.endswith("_line_T2_disrupted")
+
+
+async def test_keeps_alert_icon_and_exposes_colors(hass):
+    line = {**LINE, CONF_ROUTE_TYPE: 0, CONF_LINE_COLOR: "2EB6AC", CONF_LINE_TEXT_COLOR: "FFFFFF"}
+    sensor = _make_sensor(hass, {LINE_REF: []}, line=line)
+
+    assert sensor.icon == "mdi:alert"  # semantic "problem", not the mode icon
+    attrs = sensor.extra_state_attributes
+    assert attrs["line_color"] == "#2EB6AC"
+    assert attrs["line_text_color"] == "#FFFFFF"
+
+
+async def test_colors_backfilled_from_index(hass):
+    route = Route("T2", "T2", "", 0, "2EB6AC", "FFFFFF")
+    index = GtfsIndex(stops={}, routes={"T2": route})
+    sensor = _make_sensor(hass, {LINE_REF: []}, index=index)
+
+    assert sensor.extra_state_attributes["line_color"] == "#2EB6AC"
