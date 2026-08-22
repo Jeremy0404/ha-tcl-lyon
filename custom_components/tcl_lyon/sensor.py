@@ -7,6 +7,8 @@ One sensor per (stop, line) the user follows, built from the config entry:
                 "unavailable" when the poll fails — handled by CoordinatorEntity)
         attributes:
           line_ref
+          next_departure_time: absolute ISO time of the passage the state counts
+                               down to (None when none is known)
           next_departures: upcoming passes with aimed/expected times, realtime
                            flag, cancellation flag and minutes-to-go
 
@@ -38,6 +40,7 @@ from .const import (
     ATTR_IS_REALTIME,
     ATTR_LINE_REF,
     ATTR_MINUTES,
+    ATTR_NEXT_DEPARTURE_TIME,
     ATTR_NEXT_DEPARTURES,
     CONF_DIRECTION,
     CONF_DIRECTION_NAME,
@@ -115,8 +118,11 @@ class TclDepartureSensor(CoordinatorEntity[DeparturesCoordinator], SensorEntity)
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         now = dt_util.utcnow()
+        # Absolute time of the same passage the state counts down to (None when none).
+        nxt = self._next_departure(now)
         return {
             ATTR_LINE_REF: self._line_ref,
+            ATTR_NEXT_DEPARTURE_TIME: nxt.time.isoformat() if nxt and nxt.time else None,
             ATTR_NEXT_DEPARTURES: [
                 _serialize(departure, now) for departure in self._stop_departures()[:MAX_DEPARTURES]
             ],
