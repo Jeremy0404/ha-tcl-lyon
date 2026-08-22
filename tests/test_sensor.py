@@ -31,7 +31,7 @@ from custom_components.tcl_lyon.const import (
     CONF_STOP_NAME,
     DOMAIN,
 )
-from custom_components.tcl_lyon.coordinator import DeparturesCoordinator
+from custom_components.tcl_lyon.coordinator import AuthFailureTracker, DeparturesCoordinator
 from custom_components.tcl_lyon.sensor import TclDepartureSensor
 
 LINE_REF = "ActIV:Line::T2:SYTRAL"
@@ -73,7 +73,12 @@ def _make_sensor(hass, departures, target=TARGET, index=None):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
     coordinator = DeparturesCoordinator(
-        hass, entry, client=None, line_refs=(LINE_REF,), stop_ids=(QUAY,)
+        hass,
+        entry,
+        client=None,
+        line_refs=(LINE_REF,),
+        stop_ids=(QUAY,),
+        auth_tracker=AuthFailureTracker(),
     )
     coordinator.data = {LINE_REF: departures}
     return TclDepartureSensor(coordinator, STOP, target, index)
