@@ -7,8 +7,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-23
+
+### Added
+- `next_departure_time` attribute on each departure sensor: the absolute ISO-8601 (UTC) time of the passage the state counts down to. The state itself is unchanged, so existing `numeric_state` automations keep working.
+- Icon per transport mode on departure sensors, picked from the line's GTFS `route_type` (tram, métro, bus, funicular, trolleybus…) instead of a fixed `mdi:tram`.
+- `line_color` / `line_text_color` attributes (hex, `#`-prefixed) on the departure sensor and the disruption binary sensor, for custom cards. Entries configured before this release are backfilled from the GTFS index at setup.
+
 ### Fixed
-- Stop prompting to re-enter credentials on transient `401`s from the SIRI feed. Basic Auth is stateless, so a lone 401 amid working polls is almost always a server blip, not a credential change. Data polls now retry a 401 like any other transient error, and the coordinators only trigger the reauth flow after several consecutive auth-failed polls — a genuinely wrong password still trips it within a couple of cycles.
+- Stop prompting to re-enter credentials on transient `401`s from the SIRI feed. Basic Auth is stateless, so a lone 401 amid working polls is almost always a server blip, not a credential change. Data polls now retry a 401 like any other transient error, and reauth is only triggered once auth has been failing for a grace period with no successful poll in between — two 401s further apart than the streak timeout count as unrelated blips. A genuinely wrong password still trips reauth within a couple of cycles.
 
 ## [0.7.0] - 2026-06-06
 
