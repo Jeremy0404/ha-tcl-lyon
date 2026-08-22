@@ -140,15 +140,11 @@ async def test_invalid_json_raises_connection_error():
         await client.async_fetch_situation_exchange()
 
 
-async def test_download_gtfs_writes_body(tmp_path):
+async def test_download_gtfs_bytes_returns_body():
     session = FakeSession(FakeResponse(body=b"PK\x03\x04zip-bytes"))
     client = make_client(session)
-    dest = tmp_path / "gtfs.zip"
 
-    returned = await client.async_download_gtfs(dest)
-
-    assert returned == dest
-    assert dest.read_bytes() == b"PK\x03\x04zip-bytes"
+    assert await client.async_download_gtfs_bytes() == b"PK\x03\x04zip-bytes"
 
 
 class SequenceSession:
