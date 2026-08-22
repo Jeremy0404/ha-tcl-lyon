@@ -105,11 +105,13 @@ class TclLyonClient:
 
     async def async_fetch_estimated_timetables(self, line_ref: str) -> dict[str, Any]:
         """Raw estimated-timetables payload for one line (server honours ?LineRef=)."""
-        return await self._get_json(SIRI_ESTIMATED_TIMETABLES_URL, params={"LineRef": line_ref})
+        return await self._get_json(
+            SIRI_ESTIMATED_TIMETABLES_URL, params={"LineRef": line_ref}, retry_auth=True
+        )
 
     async def async_fetch_situation_exchange(self) -> dict[str, Any]:
         """Raw situation-exchange payload (bulk — the feed isn't server-filterable)."""
-        return await self._get_json(SIRI_SITUATION_EXCHANGE_URL)
+        return await self._get_json(SIRI_SITUATION_EXCHANGE_URL, retry_auth=True)
 
     async def async_validate_credentials(self) -> None:
         """Probe auth against situation-exchange.
@@ -139,13 +141,26 @@ class TclLyonClient:
         destination.write_bytes(await self.async_download_gtfs_bytes())
         return destination
 
-    async def _get_json(self, url: str, *, params: dict[str, str] | None = None) -> dict[str, Any]:
-        """GET JSON, retrying transient failures with exponential backoff."""
+    async def _get_json(
+        self, url: str, *, params: dict[str, str] | None = None, retry_auth: bool = False
+    ) -> dict[str, Any]:
+        """GET JSON, retrying transient failures with exponential backoff.
+
+        Basic Auth is stateless, so a 401 amid otherwise-working polls is almost
+        always a server-side blip on this flaky feed rather than a real credential
+        change. Schedule-driven callers set ``retry_auth`` to ride those out; the
+        config-flow probe leaves it off to fail fast on a genuinely wrong password.
+        """
         for attempt in range(1, REQUEST_MAX_ATTEMPTS + 1):
             try:
                 return await self._get_json_once(url, params=params)
-            except TclLyonConnectionError as err:
-                if not err.retryable or attempt == REQUEST_MAX_ATTEMPTS:
+            except TclLyonError as err:
+                transient = (
+                    err.retryable
+                    if isinstance(err, TclLyonConnectionError)
+                    else retry_auth and isinstance(err, TclLyonAuthError)
+                )
+                if not transient or attempt == REQUEST_MAX_ATTEMPTS:
                     raise
                 delay = RETRY_BACKOFF_BASE_SECONDS * 2 ** (attempt - 1)
                 _LOGGER.debug(
