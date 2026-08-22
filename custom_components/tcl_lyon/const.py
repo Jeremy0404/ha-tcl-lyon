@@ -26,10 +26,17 @@ DEFAULT_DISRUPTIONS_INTERVAL: Final = timedelta(minutes=5)
 GTFS_REFRESH_INTERVAL: Final = timedelta(days=7)
 
 # A stateless Basic-Auth 401 from the flaky SIRI feed is almost always a server
-# blip, not a real credential change, so reauth only fires after this many
-# consecutive auth-failed polls (see coordinator). A genuinely wrong password
-# keeps 401-ing every poll and still trips it within a couple of cycles.
-AUTH_FAILURE_THRESHOLD: Final = 3
+# blip, not a real credential change, so reauth only fires once auth has been
+# failing this long with no successful poll in between (see coordinator). The
+# config flow validates the password up front and fails fast, so the only way to
+# get here is a password that changed under a running entry — worth a few slow
+# minutes to avoid prompting the user for every server-side hiccup.
+AUTH_FAILURE_GRACE_PERIOD: Final = timedelta(minutes=10)
+# Two 401s far enough apart are unrelated blips, not one streak: the feed goes
+# down for hours at a time, and a connection error tells us nothing about the
+# credential. Must stay above DEFAULT_DISRUPTIONS_INTERVAL so consecutive
+# disruption polls still count as one streak.
+AUTH_FAILURE_STREAK_TIMEOUT: Final = timedelta(minutes=15)
 
 # Cached GTFS search index (stop/route data + the stop→lines serving map).
 # Shipped prebuilt in data/, then refreshed from the live feed into HA storage.

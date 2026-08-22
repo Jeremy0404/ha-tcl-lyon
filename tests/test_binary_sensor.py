@@ -27,7 +27,7 @@ from custom_components.tcl_lyon.const import (
     CONF_ROUTE_TYPE,
     DOMAIN,
 )
-from custom_components.tcl_lyon.coordinator import DisruptionsCoordinator
+from custom_components.tcl_lyon.coordinator import AuthFailureTracker, DisruptionsCoordinator
 
 LINE_REF = "ActIV:Line::T2:SYTRAL"
 LINE = {CONF_LINE_REF: LINE_REF, CONF_LINE_ID: "T2", CONF_LINE_NAME: "T2"}
@@ -47,7 +47,9 @@ DISRUPTION = Disruption(
 def _make_sensor(hass, data, line=LINE, index=None):
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
-    coordinator = DisruptionsCoordinator(hass, entry, client=None, line_refs=(LINE_REF,))
+    coordinator = DisruptionsCoordinator(
+        hass, entry, client=None, line_refs=(LINE_REF,), auth_tracker=AuthFailureTracker()
+    )
     coordinator.data = data
     return TclLineDisruptionSensor(coordinator, line, index)
 
