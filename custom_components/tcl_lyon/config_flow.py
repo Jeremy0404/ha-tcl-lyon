@@ -9,8 +9,9 @@ Initial setup (ConfigFlow):
     pick_stop     — choose one parent station from the matches.
     pick_line     — multi-select the lines to follow there.
     direction     — pick which direction(s) of each line to follow, labelled by the
-                    terminus seen in a one-off live poll, with an "add another stop"
-                    loop. Falls back to "all directions" when the feed is down.
+                    terminus the GTFS index knows for them, with an "add another
+                    stop" loop. Falls back to a live poll when the index carries no
+                    direction data, and to "all directions" when neither does.
 
 The stop/line/direction steps live in `_TargetSelectionFlow` and are shared with the
 options flow, which lets the user add or remove targets later without re-entering
@@ -69,6 +70,7 @@ from .const import (
     CONF_STOPS,
     DOMAIN,
     FORGOT_PASSWORD_URL,
+    SIRI_DIRECTION_REFS,
 )
 from .store import async_get_index
 
@@ -269,12 +271,35 @@ class _TargetSelectionFlow:
     async def _discover_directions(
         self, line: dict[str, Any]
     ) -> list[tuple[str | None, str | None]]:
-        """Directions of ``line`` seen at the current stop, as (DirectionRef, terminus).
+        """Directions of ``line`` at the current stop, as (DirectionRef, terminus).
 
-        One live poll, filtered to the stop's quays. Each distinct DirectionRef is
-        labelled by the terminus name(s) seen for it. Always appends an "all
-        directions" choice (None), which is also the sole option when the feed is
-        down or the line isn't running right now — so setup never dead-ends.
+        The static GTFS index answers first: it knows both directions of a line
+        whether or not it is running, whereas the realtime feed drops a line
+        entirely while it isn't (T2 did, 2026-08-23) and used to leave the user with
+        "all directions" as the only choice. The live poll is kept as the fallback
+        for an index with no direction data. "All directions" is always appended, so
+        the step still can't dead-end.
+        """
+        assert self._index is not None
+        directions = self._static_directions(line) or await self._live_directions(line)
+        directions.append((None, None))  # the always-available combined option
+        return directions
+
+    def _static_directions(self, line: dict[str, Any]) -> list[tuple[str | None, str | None]]:
+        """Directions from the GTFS index, labelled by terminus. Empty if it has none."""
+        assert self._index is not None
+        pairs = self._index.directions_at(self._current_stop[CONF_STOP_ID], line[CONF_LINE_ID])
+        return [
+            (ref, name or ref)
+            for direction_id, name in pairs
+            if (ref := SIRI_DIRECTION_REFS.get(direction_id)) is not None
+        ]
+
+    async def _live_directions(self, line: dict[str, Any]) -> list[tuple[str | None, str | None]]:
+        """Directions seen in one live poll, filtered to the stop's quays.
+
+        Each distinct DirectionRef is labelled by the terminus name(s) seen for it.
+        Empty when the feed is down or the line isn't running right now.
         """
         assert self._index is not None and self._client is not None
         destinations: dict[str, set[str]] = {}
@@ -294,7 +319,6 @@ class _TargetSelectionFlow:
         for direction in sorted(destinations):
             names = sorted(self._dest_name(dest_id) for dest_id in destinations[direction])
             result.append((direction, " / ".join(names) if names else direction))
-        result.append((None, None))  # the always-available combined option
         return result
 
     def _dest_name(self, stop_id: str) -> str:

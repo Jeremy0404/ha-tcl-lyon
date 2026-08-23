@@ -43,7 +43,14 @@ AUTH_FAILURE_STREAK_TIMEOUT: Final = timedelta(minutes=15)
 GTFS_INDEX_STORAGE_VERSION: Final = 1
 GTFS_INDEX_STORAGE_KEY: Final = f"{DOMAIN}_gtfs_index"
 # Bump when to_dict/from_dict change shape so stale caches are discarded.
-GTFS_INDEX_SCHEMA_VERSION: Final = 1
+GTFS_INDEX_SCHEMA_VERSION: Final = 2
+
+# SIRI DirectionRef for a GTFS direction_id, so the direction picker can be built
+# from the static feed instead of a live poll. Verified 2026-08-23 against 237 live
+# journeys spanning ~120 lines: direction_id 0 was "outbound" and 1 "inbound" every
+# time, with no counter-example. A direction_id outside this map is skipped rather
+# than guessed.
+SIRI_DIRECTION_REFS: Final = {0: "outbound", 1: "inbound"}
 
 # Most upcoming passages exposed in the sensor's attribute list.
 MAX_DEPARTURES: Final = 10

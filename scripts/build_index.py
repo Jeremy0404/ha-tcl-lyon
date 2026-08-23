@@ -12,7 +12,8 @@ Provide them via env vars or flags:
     GRANDLYON_USER=you@example.com GRANDLYON_PASS=... python scripts/build_index.py
     python scripts/build_index.py --email you@example.com --password ...
 
-A local .env (KEY=VALUE lines) is read automatically if present.
+A local .env (KEY=VALUE lines) is read automatically if present. Pass --zip to
+build from an archive already on disk instead of downloading one.
 """
 
 from __future__ import annotations
@@ -68,19 +69,20 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
-def _credentials() -> tuple[str, str]:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Rebuild the prebuilt GTFS stop/lines index shipped in data/."
     )
     parser.add_argument("--email", default=os.environ.get("GRANDLYON_USER"))
     parser.add_argument("--password", default=os.environ.get("GRANDLYON_PASS"))
+    parser.add_argument("--zip", type=Path, help="build from this GTFS archive, no download")
     args = parser.parse_args()
-    if not args.email or not args.password:
+    if not args.zip and not (args.email and args.password):
         parser.error(
             "credentials required: set GRANDLYON_USER / GRANDLYON_PASS "
-            "(or pass --email / --password)"
+            "(or pass --email / --password, or --zip to skip the download)"
         )
-    return args.email, args.password
+    return args
 
 
 def _download(email: str, password: str) -> bytes:
@@ -94,9 +96,14 @@ def _download(email: str, password: str) -> bytes:
 
 def main() -> None:
     _load_dotenv()
-    email, password = _credentials()
-    data = _download(email, password)
-    print(f"downloaded {len(data) / 1e6:.1f} MB; building index (this scans stop_times.txt)...")
+    args = _parse_args()
+    if args.zip:
+        data = args.zip.read_bytes()
+        print(f"read {args.zip} ({len(data) / 1e6:.1f} MB)")
+    else:
+        data = _download(args.email, args.password)
+        print(f"downloaded {len(data) / 1e6:.1f} MB")
+    print("building index (this scans stop_times.txt)...")
 
     index = GtfsIndex.from_bytes_full(data)
     payload = json.dumps(index.to_dict(), ensure_ascii=False, separators=(",", ":")).encode("utf-8")

@@ -41,7 +41,7 @@
       },
       "direction": {
         "title": "Choisir les directions",
-        "description": "Choisissez la ou les directions à suivre à {stop_name}. Chacune est étiquetée par son terminus. « Toutes directions » regroupe les deux sens (utilisé en repli quand le temps réel est indisponible).",
+        "description": "Choisissez la ou les directions à suivre à {stop_name}. Chacune est étiquetée par son terminus. « Toutes directions » regroupe les deux sens.",
         "data": {
           "directions": "Directions",
           "add_another": "Ajouter un autre arrêt"
@@ -108,7 +108,7 @@
       },
       "direction": {
         "title": "Choisir les directions",
-        "description": "Choisissez la ou les directions à suivre à {stop_name}. Chacune est étiquetée par son terminus. « Toutes directions » regroupe les deux sens (utilisé en repli quand le temps réel est indisponible).",
+        "description": "Choisissez la ou les directions à suivre à {stop_name}. Chacune est étiquetée par son terminus. « Toutes directions » regroupe les deux sens.",
         "data": {
           "directions": "Directions",
           "add_another": "Ajouter un autre arrêt"
