@@ -8,9 +8,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- README now documents the `next_departure_time`, `line_color` / `line_text_color` and `line_ref` attributes, and the per-mode icon, all of which shipped in 0.8.0 undocumented.
 - `scripts/deploy.sh`, a WSL front-end for `scripts/deploy.ps1`. The repo now lives on the Linux side while the HA config share is only reachable through Windows; the wrapper works around the execution-policy and file-watching breakage that a `\\wsl.localhost\` path causes. Dev tooling only — nothing shipped to users changes.
 
 ### Changed
+- Install instructions rewritten for the HACS default store: "HACS → search TCL Lyon" rather than adding a custom repository, with the custom-repo route kept only as a pre-release fallback. Automation examples updated to current Home Assistant `triggers:`/`actions:` syntax.
 - HACS no longer offers the `main` branch as an installable version (`hide_default_branch`). Installs now come only from published releases, which is the zipped-release path the project actually builds and tests.
 
 ### Removed
