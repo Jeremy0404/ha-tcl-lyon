@@ -7,6 +7,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+- Unused `TclLyonClient.async_download_gtfs()`, which wrote the ~20 MB GTFS archive to disk with a blocking call inside an `async def`. Nothing called it — the config flow and the index store both use `async_download_gtfs_bytes()`. Ruff's `ASYNC` rules are now enabled to catch this class of bug.
+
 ## [0.8.0] - 2026-08-23
 
 ### Added

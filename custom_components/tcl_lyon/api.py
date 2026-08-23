@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -130,16 +129,6 @@ class TclLyonClient:
         """
         async with self._request(GTFS_DOWNLOAD_URL, timeout=GTFS_TIMEOUT) as response:
             return await response.read()
-
-    async def async_download_gtfs(self, dest: str | Path) -> Path:
-        """Download the GTFS zip to ``dest`` (same Basic Auth). Returns the path.
-
-        Reads the ~20 MB body into memory then writes it; the write is blocking, so
-        callers inside HA should run this via ``hass.async_add_executor_job``.
-        """
-        destination = Path(dest)
-        destination.write_bytes(await self.async_download_gtfs_bytes())
-        return destination
 
     async def _get_json(
         self, url: str, *, params: dict[str, str] | None = None, retry_auth: bool = False
