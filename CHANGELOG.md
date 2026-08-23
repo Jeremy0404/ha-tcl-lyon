@@ -7,11 +7,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-08-23
+
 ### Fixed
 - The direction picker no longer collapses to "all directions" for a line the realtime feed isn't publishing. Directions now come from the static GTFS index (`direction_id` + `trip_headsign`), so both directions and their terminus names are offered whether or not the line is running — a live poll is only the fallback for an index without direction data. T2 at Ambroise Paré hit this: the line was absent from `estimated-timetables` network-wide, leaving "all directions" as the only choice.
 
 ### Changed
 - The prebuilt GTFS index gained a direction map, so its schema version is now 2. Cached copies from an older version are discarded and rebuilt automatically; no user action is needed.
+- The bundled GTFS index is rebuilt from the 2026-08-23 feed (valid to 2026-12-21), so a first-ever setup searches the current timetable: 14072 stops, 875 routes.
 
 ## [0.8.1] - 2026-08-23
 
