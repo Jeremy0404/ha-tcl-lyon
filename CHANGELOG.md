@@ -7,6 +7,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- HACS no longer offers the `main` branch as an installable version (`hide_default_branch`). Installs now come only from published releases, which is the zipped-release path the project actually builds and tests.
+
 ### Removed
 - Unused `TclLyonClient.async_download_gtfs()`, which wrote the ~20 MB GTFS archive to disk with a blocking call inside an `async def`. Nothing called it — the config flow and the index store both use `async_download_gtfs_bytes()`. Ruff's `ASYNC` rules are now enabled to catch this class of bug.
 
