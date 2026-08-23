@@ -23,6 +23,11 @@
 
 .NOTES
   Override the destination with $env:HA_CONFIG_SHARE, or HA_URL/HA_TOKEN via .env.
+
+  From WSL, run scripts/deploy.sh instead of calling this directly: a \\wsl.localhost\ path
+  is an untrusted zone, so -File on it trips the RemoteSigned execution policy, and -Watch
+  never fires because FileSystemWatcher gets no change notifications over the 9p bridge.
+  The wrapper passes -ExecutionPolicy Bypass and polls from the Linux side.
 #>
 [CmdletBinding()]
 param(
