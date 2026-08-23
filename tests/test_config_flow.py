@@ -72,11 +72,18 @@ def _gtfs_bytes() -> bytes:
 
 GTFS_BYTES = _gtfs_bytes()
 
-# A full GTFS where T2 serves S5484 (via quay 32166) but C3 serves nothing there —
-# enough to exercise the serving-map filter on the line picker.
-_TRIPS_CSV = "route_id,service_id,trip_id\nT2,W,t1\n"
+# A full GTFS where T2 serves S5484 (via quay 32166) in both directions but C3
+# serves nothing there — enough to exercise the serving-map filter on the line
+# picker and the static direction picker.
+_TRIPS_CSV = (
+    "route_id,service_id,trip_id,trip_headsign,direction_id\n"
+    "T2,W,t1,Saint-Priest Bel Air,0\n"
+    "T2,W,t2,Hôtel Région Montrochet,1\n"
+)
 _STOP_TIMES_CSV = (
-    "trip_id,arrival_time,departure_time,stop_id,stop_sequence\nt1,08:00:00,08:00:00,32166,1\n"
+    "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+    "t1,08:00:00,08:00:00,32166,1\n"
+    "t2,09:00:00,09:00:00,32166,1\n"
 )
 
 
@@ -103,7 +110,10 @@ T2_OUTBOUND = {
 }
 
 
-def _patch_client(monkeypatch, *, validate_exc=None, download_exc=None):
+def _patch_client(monkeypatch, *, validate_exc=None, download_exc=None, timetables_exc=None):
+    """Fake the client and return a call counter, so a test can prove no poll happened."""
+    calls = {"timetables": 0}
+
     class FakeClient:
         def __init__(self, session, username, password):
             self.username = username
@@ -119,9 +129,13 @@ def _patch_client(monkeypatch, *, validate_exc=None, download_exc=None):
             return GTFS_BYTES
 
         async def async_fetch_estimated_timetables(self, line_ref):
+            calls["timetables"] += 1
+            if timetables_exc is not None:
+                raise timetables_exc
             return load_fixture("estimated_timetables.json")
 
     monkeypatch.setattr(config_flow, "TclLyonClient", FakeClient)
+    return calls
 
 
 @pytest.fixture(autouse=True)
@@ -211,6 +225,45 @@ async def test_line_picker_filters_to_serving_lines(hass, monkeypatch):
     # T2 does serve S5484 → advance to the picker, offering only T2.
     result = await _cfg(hass, result, {CONF_QUERY: "t2"})
     assert result["step_id"] == "pick_line"
+
+
+async def test_direction_picker_uses_the_gtfs_index_not_the_feed(hass, monkeypatch):
+    """A line missing from the realtime feed must still offer its directions.
+
+    This is the T2-at-Ambroise-Paré case of 2026-08-23: the line was absent from
+    estimated-timetables network-wide, so the old live-poll discovery left "all
+    directions" as the only choice.
+    """
+    from custom_components.tcl_lyon.gtfs import GtfsIndex
+
+    calls = _patch_client(monkeypatch, timetables_exc=TclLyonConnectionError("feed down"))
+    full = GtfsIndex.from_bytes_full(_full_gtfs_bytes())
+
+    async def _fake_get_index(hass, client):
+        return full
+
+    monkeypatch.setattr(config_flow, "async_get_index", _fake_get_index)
+
+    result = await _init_user(hass)
+    result = await _cfg(hass, result, {CONF_USERNAME: "me@example.com", CONF_PASSWORD: "pw"})
+    result = await _walk_to_direction(
+        hass, result, stop_query="hotel", stop_id="S5484", line_query="t2", lines=["T2"]
+    )
+    assert result["step_id"] == "direction"
+    # Both directions are on offer, keyed and labelled from the static feed…
+    result = await _cfg(
+        hass,
+        result,
+        {CONF_DIRECTIONS: ["T2|outbound", "T2|inbound"], CONF_ADD_ANOTHER: False},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    targets = result["data"][CONF_STOPS][0][CONF_LINES]
+    assert [(t[CONF_DIRECTION], t[CONF_DIRECTION_NAME]) for t in targets] == [
+        ("outbound", "Saint-Priest Bel Air"),
+        ("inbound", "Hôtel Région Montrochet"),
+    ]
+    # …and the picker never asked the feed at all.
+    assert calls["timetables"] == 0
 
 
 async def test_add_another_stop_loops_and_falls_back_to_all(hass, monkeypatch):

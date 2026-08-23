@@ -7,6 +7,7 @@ shipping a binary fixture.
 
 from __future__ import annotations
 
+import json
 import zipfile
 from datetime import datetime
 
@@ -138,14 +139,21 @@ FULL_STOPS_CSV = (
     "33219,33219,Saint-Priest Bel Air,0,S7000,45.7001,4.9402\n"
     "90001,90001,Standalone Halt,0,,45.0,4.0\n"
 )
-TRIPS_CSV = "route_id,service_id,trip_id\nT2,W,t1\nT2,W,t2\nC3,W,t3\n"
-# t1/t2 (T2) call at 32166 (→S5484) and 33219 (→S7000); t3 (C3) at 48253 (→S6000)
-# and the parentless quay 90001 (keyed by itself).
+TRIPS_CSV = (
+    "route_id,service_id,trip_id,trip_headsign,direction_id\n"
+    "T2,W,t1,Saint-Priest Bel Air,0\n"
+    "T2,W,t2,Hôtel Région Montrochet,1\n"
+    "T2,W,t4,Porte des Alpes,0\n"  # a short-turn: same direction, rarer headsign
+    "C3,W,t3,Vaulx La Grappinière,0\n"
+)
+# t1/t2/t4 (T2) call at 32166 (→S5484), t1 also at 33219 (→S7000); t3 (C3) at
+# 48253 (→S6000) and the parentless quay 90001 (keyed by itself).
 STOP_TIMES_CSV = (
     "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
     "t1,08:00:00,08:00:00,32166,1\n"
     "t1,08:10:00,08:10:00,33219,2\n"
     "t2,09:00:00,09:00:00,32166,1\n"
+    "t4,09:30:00,09:30:00,32166,1\n"
     "t3,07:00:00,07:00:00,48253,1\n"
     "t3,07:30:00,07:30:00,90001,2\n"
 )
@@ -182,6 +190,46 @@ def test_routes_serving_unknown_stop_is_empty(full_index):
     assert full_index.routes_serving("does-not-exist") == set()
 
 
+def test_full_build_records_directions_per_station(full_index):
+    # Both T2 directions call at S5484; only the outbound one reaches S7000.
+    assert full_index.directions_at("S5484", "T2") == [
+        (0, "Saint-Priest Bel Air"),
+        (1, "Hôtel Région Montrochet"),
+    ]
+    assert full_index.directions_at("S7000", "T2") == [(0, "Saint-Priest Bel Air")]
+
+
+def test_direction_label_is_the_dominant_headsign(full_index):
+    # Direction 0 has two headsigns (t1 + t4); the label is the one most trips carry.
+    assert full_index.route_directions["T2"][0] == "Saint-Priest Bel Air"
+
+
+def test_directions_at_unknown_pair_is_empty(full_index):
+    assert full_index.directions_at("S5484", "C3") == []
+    assert full_index.directions_at("does-not-exist", "T2") == []
+
+
+def test_direction_ids_survive_a_json_round_trip(full_index):
+    # JSON turns the direction_id keys into strings; from_dict must undo that, or
+    # the picker silently finds no directions for any line.
+    restored = GtfsIndex.from_dict(json.loads(json.dumps(full_index.to_dict())))
+    assert restored.directions_at("S5484", "T2") == full_index.directions_at("S5484", "T2")
+
+
+def test_full_build_without_direction_columns(tmp_path):
+    # direction_id / trip_headsign are optional in GTFS: the serving map must still
+    # build, just with no directions to offer.
+    zip_path = tmp_path / "no_directions.zip"
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr("stops.txt", FULL_STOPS_CSV.encode("utf-8"))
+        archive.writestr("routes.txt", ROUTES_CSV.encode("utf-8"))
+        archive.writestr("trips.txt", b"route_id,service_id,trip_id\nT2,W,t1\n")
+        archive.writestr("stop_times.txt", STOP_TIMES_CSV.encode("utf-8"))
+    index = GtfsIndex.from_zip_full(zip_path)
+    assert index.routes_serving("S5484") == {"T2"}
+    assert index.directions_at("S5484", "T2") == []
+
+
 def test_full_build_records_metadata(full_index):
     assert isinstance(full_index.built_at, datetime)
     assert full_index.feed_version == "2026-06-06"
@@ -202,6 +250,8 @@ def test_cheap_build_leaves_serving_map_empty(tmp_path):
     index = GtfsIndex.from_bytes(zip_path.read_bytes())
     assert index.stop_routes == {}
     assert index.routes_serving("S5484") == set()
+    assert index.route_directions == {}
+    assert index.directions_at("S5484", "T2") == []
 
 
 def test_to_dict_from_dict_round_trip(full_index):
@@ -209,6 +259,7 @@ def test_to_dict_from_dict_round_trip(full_index):
     assert set(restored.stops) == set(full_index.stops)
     assert set(restored.routes) == set(full_index.routes)
     assert restored.stop_routes == full_index.stop_routes
+    assert restored.route_directions == full_index.route_directions
     assert restored.built_at == full_index.built_at
     assert restored.feed_version == full_index.feed_version
     # A restored stop/route keeps its fields, not just its id.
